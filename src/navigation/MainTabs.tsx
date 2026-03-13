@@ -7,7 +7,7 @@ import useThemeStore from '../store/themeStore';
 
 // Tab screens / stacks
 import FeedStack from './FeedStack';
-import ExploreScreen from '../screens/explore/ExploreScreen';
+import ExploreStack from './ExploreStack';
 import CreatePostScreen from '../screens/create/CreatePostScreen';
 import ConversationsScreen from '../screens/messages/ConversationsScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
@@ -85,7 +85,7 @@ export default function MainTabs() {
       />
       <Tab.Screen
         name="ExploreTab"
-        component={ExploreScreen}
+        component={ExploreStack}
         options={{ tabBarLabel: 'Explore' }}
       />
       <Tab.Screen

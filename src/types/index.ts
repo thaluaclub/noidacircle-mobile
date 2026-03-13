@@ -91,6 +91,25 @@ export interface PresignedResponse {
   mediaType: 'image' | 'video' | 'document';
 }
 
+// Search user result
+export interface SearchUser {
+  id: string;
+  username: string;
+  full_name: string | null;
+  profile_image_url: string | null;
+  bio: string | null;
+  is_verified: boolean;
+  is_private: boolean;
+  account_type: string | null;
+  verification_badge: string | null;
+  account_category: string | null;
+}
+
+export interface SearchUsersResponse {
+  users: SearchUser[];
+  pagination: Pagination;
+}
+
 // Create post
 export interface CreatePostData {
   content: string;
