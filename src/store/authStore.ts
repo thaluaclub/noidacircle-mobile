@@ -28,6 +28,7 @@ interface AuthState {
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   restoreSession: () => Promise<void>;
+  setUser: (user: User) => void;
   clearError: () => void;
 }
 
@@ -98,6 +99,11 @@ const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       set({ initialized: true });
     }
+  },
+
+  setUser: (user: User) => {
+    set({ user });
+    AsyncStorage.setItem('nc_user', JSON.stringify(user));
   },
 
   clearError: () => set({ error: null }),

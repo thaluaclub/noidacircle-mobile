@@ -2,6 +2,7 @@ import React, { useEffect, useCallback } from 'react';
 import {
   View,
   Text,
+  TouchableOpacity,
   StyleSheet,
   RefreshControl,
   ActivityIndicator,
@@ -105,13 +106,13 @@ export default function FeedScreen() {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <Text style={[styles.logo, { color: textColor }]}>NoidaCircle</Text>
-        <View style={styles.headerIcons}>
+        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIcons}>
           <Ionicons
             name="notifications-outline"
             size={24}
             color={textColor}
           />
-        </View>
+        </TouchableOpacity>
       </View>
 
       {/* Error Banner */}

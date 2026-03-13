@@ -9,8 +9,8 @@ import useThemeStore from '../store/themeStore';
 import FeedStack from './FeedStack';
 import ExploreStack from './ExploreStack';
 import CreatePostScreen from '../screens/create/CreatePostScreen';
-import ConversationsScreen from '../screens/messages/ConversationsScreen';
-import ProfileScreen from '../screens/profile/ProfileScreen';
+import MessagesStack from './MessagesStack';
+import ProfileStack from './ProfileStack';
 
 export type MainTabsParamList = {
   FeedTab: undefined;
@@ -95,12 +95,12 @@ export default function MainTabs() {
       />
       <Tab.Screen
         name="MessagesTab"
-        component={ConversationsScreen}
+        component={MessagesStack}
         options={{ tabBarLabel: 'Chat' }}
       />
       <Tab.Screen
         name="ProfileTab"
-        component={ProfileScreen}
+        component={ProfileStack}
         options={{ tabBarLabel: 'Profile' }}
       />
     </Tab.Navigator>
