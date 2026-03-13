@@ -1,31 +1,111 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useEffect, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  RefreshControl,
+  ActivityIndicator,
+  Platform,
+} from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import useAuthStore from '../../store/authStore';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import PostCard from '../../components/PostCard';
+import { FeedSkeleton } from '../../components/Skeleton';
+import EmptyState from '../../components/EmptyState';
+import usePostsStore from '../../store/postsStore';
 import useThemeStore from '../../store/themeStore';
 import { colors } from '../../theme/colors';
+import type { Post } from '../../types';
+import type { FeedStackParamList } from '../../navigation/FeedStack';
+
+type FeedNav = NativeStackNavigationProp<FeedStackParamList, 'Feed'>;
 
 export default function FeedScreen() {
-  const user = useAuthStore((s) => s.user);
   const dark = useThemeStore((s) => s.dark);
+  const {
+    posts,
+    loading,
+    refreshing,
+    hasMore,
+    error,
+    fetchFeed,
+    refreshFeed,
+    loadMore,
+    toggleLike,
+    toggleBookmark,
+  } = usePostsStore();
+  const navigation = useNavigation<FeedNav>();
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
-  const mutedColor = dark ? colors.dark.muted : colors.light.muted;
+  const borderColor = dark ? colors.dark.border : colors.light.border;
+
+  useEffect(() => {
+    fetchFeed(1);
+  }, []);
+
+  const handlePostPress = useCallback(
+    (post: Post) => {
+      navigation.navigate('PostDetail', { postId: post.id, post });
+    },
+    [navigation]
+  );
+
+  const handleUserPress = useCallback(
+    (_userId: string) => {
+      // Will navigate to user profile in future
+    },
+    []
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: Post }) => (
+      <PostCard
+        post={item}
+        dark={dark}
+        onPress={() => handlePostPress(item)}
+        onLike={() => toggleLike(item.id)}
+        onBookmark={() => toggleBookmark(item.id)}
+        onComment={() => handlePostPress(item)}
+        onUserPress={handleUserPress}
+      />
+    ),
+    [dark, toggleLike, toggleBookmark, handlePostPress, handleUserPress]
+  );
+
+  const renderFooter = useCallback(() => {
+    if (!hasMore || posts.length === 0) return null;
+    return (
+      <View style={styles.footer}>
+        <ActivityIndicator size="small" color={colors.primary[500]} />
+      </View>
+    );
+  }, [hasMore, posts.length]);
+
+  const renderEmpty = useCallback(() => {
+    if (loading) return <FeedSkeleton />;
+    return (
+      <EmptyState
+        icon="newspaper-outline"
+        title="No posts yet"
+        subtitle="Follow people in Noida to see their posts here"
+        actionTitle="Explore"
+        dark={dark}
+      />
+    );
+  }, [loading, dark]);
+
+  const keyExtractor = useCallback((item: Post) => item.id, []);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <Text style={[styles.logo, { color: textColor }]}>NoidaCircle</Text>
         <View style={styles.headerIcons}>
-          <Ionicons
-            name="heart-outline"
-            size={24}
-            color={textColor}
-            style={styles.headerIcon}
-          />
           <Ionicons
             name="notifications-outline"
             size={24}
@@ -34,17 +114,33 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      {/* Placeholder content */}
-      <View style={styles.content}>
-        <Ionicons name="newspaper-outline" size={64} color={mutedColor} />
-        <Text style={[styles.welcomeText, { color: textColor }]}>
-          Welcome, {user?.display_name || user?.username || 'there'}!
-        </Text>
-        <Text style={[styles.placeholderText, { color: mutedColor }]}>
-          Feed will load here with FlashList infinite scroll.
-          {'\n'}Coming in Phase 2.
-        </Text>
-      </View>
+      {/* Error Banner */}
+      {error && !loading && (
+        <View style={styles.errorBanner}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
+
+      {/* Feed List */}
+      <FlashList
+        data={posts}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        ListEmptyComponent={renderEmpty}
+        ListFooterComponent={renderFooter}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.5}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={refreshFeed}
+            tintColor={colors.primary[500]}
+            colors={[colors.primary[500]]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContent}
+      />
     </SafeAreaView>
   );
 }
@@ -60,7 +156,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 0.5,
-    borderBottomColor: colors.light.border,
   },
   logo: {
     fontSize: 22,
@@ -72,24 +167,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  headerIcon: {
-    marginRight: 0,
+  errorBanner: {
+    backgroundColor: colors.error,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-  },
-  welcomeText: {
-    fontSize: 20,
-    fontWeight: '700',
-    marginTop: 16,
-    marginBottom: 8,
-  },
-  placeholderText: {
-    fontSize: 14,
+  errorText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '500',
     textAlign: 'center',
-    lineHeight: 20,
+  },
+  listContent: {
+    paddingBottom: Platform.OS === 'ios' ? 88 : 64,
+  },
+  footer: {
+    paddingVertical: 20,
+    alignItems: 'center',
   },
 });

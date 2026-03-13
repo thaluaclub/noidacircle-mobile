@@ -5,8 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import useThemeStore from '../store/themeStore';
 
-// Placeholder screens — will be replaced with full stacks
-import FeedScreen from '../screens/feed/FeedScreen';
+// Tab screens / stacks
+import FeedStack from './FeedStack';
 import ExploreScreen from '../screens/explore/ExploreScreen';
 import CreatePostScreen from '../screens/create/CreatePostScreen';
 import ConversationsScreen from '../screens/messages/ConversationsScreen';
@@ -80,7 +80,7 @@ export default function MainTabs() {
     >
       <Tab.Screen
         name="FeedTab"
-        component={FeedScreen}
+        component={FeedStack}
         options={{ tabBarLabel: 'Home' }}
       />
       <Tab.Screen
