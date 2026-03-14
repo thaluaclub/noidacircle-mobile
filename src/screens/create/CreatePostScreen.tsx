@@ -20,11 +20,10 @@ import { useNavigation } from '@react-navigation/native';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
 import usePostsStore from '../../store/postsStore';
-import { postsAPI, uploadAPI } from '../../services/api';
-import { getMimeType } from '../../services/upload';
+import { postsAPI } from '../../services/api';
+import { uploadFile, getMimeType } from '../../services/upload';
 import { colors } from '../../theme/colors';
 import Avatar from '../../components/Avatar';
-import * as FileSystem from 'expo-file-system';
 import type { CreatePostData } from '../../types';
 
 const MAX_CONTENT_LENGTH = 2000;
@@ -181,71 +180,6 @@ export default function CreatePostScreen() {
     setPollOptions(prev => prev.map(o => o.id === id ? { ...o, text } : o));
   }, []);
 
-  // ---- Upload file using presigned URL (more reliable for large files) ----
-  const uploadMediaFile = async (uri: string, mimeType: string): Promise<string> => {
-    const ext = uri.split('.').pop()?.split('?')[0] || 'jpg';
-    const fileName = `upload_${Date.now()}.${ext}`;
-
-    try {
-      // Step 1: Get presigned URL from backend
-      setUploadProgress('Preparing upload...');
-      const presignedRes = await uploadAPI.presigned({
-        fileName,
-        fileType: mimeType,
-        folder: 'posts',
-      });
-
-      const { presignedUrl, fileUrl } = presignedRes.data;
-
-      if (!presignedUrl || !fileUrl) {
-        throw new Error('Failed to get upload URL from server');
-      }
-
-      // Step 2: Upload file directly to S3 using presigned URL
-      setUploadProgress('Uploading media...');
-      const uploadResult = await FileSystem.uploadAsync(presignedUrl, uri, {
-        httpMethod: 'PUT',
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-        headers: {
-          'Content-Type': mimeType,
-        },
-      });
-
-      if (uploadResult.status < 200 || uploadResult.status >= 300) {
-        // Presigned upload failed, fall back to base64
-        console.log('Presigned upload failed, trying base64...');
-        return await uploadViaBase64(uri, fileName, mimeType);
-      }
-
-      return fileUrl;
-    } catch (presignedError: any) {
-      // Fall back to base64 upload
-      console.log('Presigned upload error, trying base64:', presignedError.message);
-      return await uploadViaBase64(uri, fileName, mimeType);
-    }
-  };
-
-  // Fallback: upload via base64 encoding
-  const uploadViaBase64 = async (uri: string, fileName: string, mimeType: string): Promise<string> => {
-    setUploadProgress('Uploading (base64)...');
-    const base64Data = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-
-    const res = await uploadAPI.base64({
-      data: base64Data,
-      fileName,
-      fileType: mimeType,
-      folder: 'posts',
-    });
-
-    if (!res.data?.fileUrl) {
-      throw new Error('Upload succeeded but no file URL returned');
-    }
-
-    return res.data.fileUrl;
-  };
-
   // ---- Publish ----
   const handlePublish = useCallback(async () => {
     if (!canPublish) return;
@@ -261,14 +195,13 @@ export default function CreatePostScreen() {
       // Step 1: Upload media if selected
       if (selectedMedia && mediaType) {
         try {
+          setUploadProgress('Uploading media...');
           const mimeType = getMimeType(selectedMedia);
-          mediaUrl = await uploadMediaFile(selectedMedia, mimeType);
+          mediaUrl = await uploadFile(selectedMedia, 'posts', mimeType);
           uploadMediaType = mediaType;
         } catch (uploadErr: any) {
-          const uploadMsg = uploadErr.response?.data?.error
-            || uploadErr.message
-            || 'Media upload failed';
-          Alert.alert('Upload Error', uploadMsg + '\n\nWould you like to post without media?', [
+          const uploadMsg = uploadErr.message || 'Media upload failed';
+          Alert.alert('Upload Error', uploadMsg, [
             { text: 'Cancel', style: 'cancel', onPress: () => { setPublishing(false); setUploadProgress(''); } },
             { text: 'Post without media', onPress: () => createPost(undefined, undefined) },
           ]);
