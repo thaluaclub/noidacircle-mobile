@@ -185,6 +185,10 @@ export default function CreatePostScreen() {
       if (mediaUrl) {
         postData.media_url = mediaUrl;
         postData.media_type = uploadMediaType;
+        // Set category to 'reel' for video posts so they appear in Reels tab
+        if (uploadMediaType === 'video' && !postData.category) {
+          postData.category = 'reel';
+        }
       }
 
       // Add poll/event metadata to content if applicable
@@ -216,15 +220,15 @@ export default function CreatePostScreen() {
       }
 
       const res = await postsAPI.create(postData);
-      const newPost = res.data.post || res.data;
+      const newPost = res.data?.post || res.data;
 
       addPost({
         ...newPost,
-        user: {
+        user: newPost.user || {
           id: user?.id || '',
           username: user?.username || '',
-          full_name: user?.display_name || null,
-          profile_image_url: user?.avatar_url || null,
+          full_name: user?.full_name || user?.display_name || null,
+          profile_image_url: user?.profile_image_url || user?.avatar_url || null,
           is_verified: user?.is_verified || false,
         },
         is_liked: false,
