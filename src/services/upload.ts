@@ -1,8 +1,9 @@
+import * as FileSystem from 'expo-file-system';
 import { uploadAPI } from './api';
-import type { PresignedResponse } from '../types';
 
 /**
- * Upload a file from a local URI to S3 via presigned URL
+ * Upload a file from a local URI to S3 via base64 encoding
+ * More reliable on Android than presigned URL + blob approach
  * @param uri - Local file URI (from expo-image-picker)
  * @param folder - S3 folder (e.g., 'posts', 'profiles')
  * @param fileType - MIME type (e.g., 'image/jpeg')
@@ -15,32 +16,23 @@ export async function uploadFile(
 ): Promise<string> {
   // Extract file extension from URI
   const uriParts = uri.split('.');
-  const ext = uriParts[uriParts.length - 1] || 'jpg';
+  const ext = uriParts[uriParts.length - 1]?.split('?')[0] || 'jpg';
   const fileName = `upload_${Date.now()}.${ext}`;
 
-  // Get presigned URL from backend
-  const { data } = await uploadAPI.presigned({
+  // Read file as base64 using expo-file-system (reliable on all platforms)
+  const base64Data = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
+  // Upload via base64 endpoint (server-side S3 upload)
+  const { data } = await uploadAPI.base64({
+    data: base64Data,
     fileName,
     fileType,
     folder,
   });
 
-  const presigned: PresignedResponse = data;
-
-  // Fetch the local file as blob
-  const response = await fetch(uri);
-  const blob = await response.blob();
-
-  // Upload to S3
-  await fetch(presigned.presignedUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': fileType,
-    },
-    body: blob,
-  });
-
-  return presigned.fileUrl;
+  return data.fileUrl;
 }
 
 /**
