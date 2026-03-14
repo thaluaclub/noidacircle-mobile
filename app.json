@@ -38,6 +38,12 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "owner": "thaluaclub",
+    "extra": {
+      "eas": {
+        "projectId": "a486319f-13c4-4101-a54c-110a576a5c5d"
+      }
+    },
     "plugins": [
       "expo-image-picker",
       [
