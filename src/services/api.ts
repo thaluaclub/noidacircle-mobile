@@ -43,6 +43,11 @@ export const authAPI = {
     api.post('/auth/login', data),
   forgotPassword: (email: string) =>
     api.post('/auth/forgot-password', { email }),
+  // Phone OTP auth
+  sendOTP: (phone: string) =>
+    api.post('/auth/send-otp', { phone }),
+  verifyOTP: (phone: string, otp: string) =>
+    api.post('/auth/verify-otp', { phone, otp }),
 };
 
 // Users API
@@ -131,6 +136,21 @@ export const notificationsAPI = {
   unreadCount: () => api.get('/notifications/unread-count'),
   markRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
+  // Push notification registration
+  registerPushToken: (token: string, platform: string) =>
+    api.post('/notifications/push-token', { token, platform }),
+  removePushToken: (token: string) =>
+    api.delete('/notifications/push-token', { data: { token } }),
+  // Notification preferences for specific users/pages
+  subscribe: (targetId: string) =>
+    api.post(`/notifications/subscribe/${targetId}`),
+  unsubscribe: (targetId: string) =>
+    api.delete(`/notifications/subscribe/${targetId}`),
+  checkSubscription: (targetId: string) =>
+    api.get(`/notifications/subscribe/${targetId}/check`),
+  getPreferences: () => api.get('/notifications/preferences'),
+  updatePreferences: (data: any) =>
+    api.put('/notifications/preferences', data),
 };
 
 // Recommendations API
@@ -190,6 +210,20 @@ export const verificationAPI = {
   apply: (data: { reason: string; document_url?: string; social_links?: string; website_url?: string }) =>
     api.post('/verification/apply', data),
   myStatus: () => api.get('/verification/my-status'),
+};
+
+// Location & Nearby API
+export const locationAPI = {
+  updateLocation: (lat: number, lng: number) =>
+    api.put('/users/me/location', { latitude: lat, longitude: lng }),
+  nearbyUsers: (lat: number, lng: number, radius = 10, page = 1) =>
+    api.get(`/users/nearby?lat=${lat}&lng=${lng}&radius=${radius}&page=${page}`),
+  nearbyPosts: (lat: number, lng: number, radius = 10, page = 1) =>
+    api.get(`/posts/nearby?lat=${lat}&lng=${lng}&radius=${radius}&page=${page}`),
+  nearbyBusinesses: (lat: number, lng: number, radius = 10, page = 1) =>
+    api.get(`/users/nearby?lat=${lat}&lng=${lng}&radius=${radius}&page=${page}&type=business`),
+  nearbyCommunities: (lat: number, lng: number, radius = 10, page = 1) =>
+    api.get(`/communities/nearby?lat=${lat}&lng=${lng}&radius=${radius}&page=${page}`),
 };
 
 export default api;
