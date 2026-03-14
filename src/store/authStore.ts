@@ -14,6 +14,7 @@ interface User {
   location?: string;
   is_verified?: boolean;
   is_admin?: boolean;
+  account_type?: string;
   followers_count?: number;
   following_count?: number;
   posts_count?: number;
