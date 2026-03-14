@@ -88,6 +88,13 @@ export default function FeedScreen() {
     [navigation]
   );
 
+  const handleReelPress = useCallback(
+    (post: Post) => {
+      navigation.navigate('ReelViewer', { post });
+    },
+    [navigation]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Post }) => (
       <PostCard
@@ -99,9 +106,10 @@ export default function FeedScreen() {
         onBookmark={() => toggleBookmark(item.id)}
         onComment={() => handlePostPress(item)}
         onUserPress={handleUserPress}
+        onReelPress={handleReelPress}
       />
     ),
-    [dark, visiblePostIds, toggleLike, toggleBookmark, handlePostPress, handleUserPress]
+    [dark, visiblePostIds, toggleLike, toggleBookmark, handlePostPress, handleUserPress, handleReelPress]
   );
 
   const renderFooter = useCallback(() => {
