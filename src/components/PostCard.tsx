@@ -90,11 +90,20 @@ function PostCard({
 
   const handleShare = useCallback(async () => {
     try {
+      const shareUrl = `https://noidacircle.com/post/${post.id}`;
+      const caption = post.content
+        ? `${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}`
+        : (post.title || 'Check out this post on NoidaCircle!');
+      const userName = post.user?.full_name || post.user?.username || '';
+      const message = `${caption}\n\n${userName ? `— ${userName}\n` : ''}Via NoidaCircle.com\n${shareUrl}`;
+
       await Share.share({
-        message: `${post.content.substring(0, 100)}... — NoidaCircle`,
+        message,
+        url: post.media_url || shareUrl,
+        title: userName ? `${userName} on NoidaCircle` : 'NoidaCircle',
       });
     } catch {}
-  }, [post.content]);
+  }, [post.id, post.content, post.title, post.media_url, post.user]);
 
   const displayContent =
     isLong && !expanded
@@ -629,3 +638,4 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
