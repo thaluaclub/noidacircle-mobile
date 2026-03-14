@@ -12,9 +12,10 @@ import {
   Share,
   Modal,
   TextInput,
-  KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Keyboard,
+  KeyboardEvent,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -81,11 +82,9 @@ function ReelItem({ post, isVisible, onCommentPress, onSharePress }: ReelItemPro
     const newMuted = !isMuted;
     setIsMuted(newMuted);
     player.muted = newMuted;
-    // Persist mute state globally
     globalMuted = newMuted;
   }, [isMuted, player]);
 
-  // Tap to pause/play
   const handleVideoTap = useCallback(() => {
     if (isPaused) {
       player.play();
@@ -106,7 +105,6 @@ function ReelItem({ post, isVisible, onCommentPress, onSharePress }: ReelItemPro
             contentFit="cover"
             nativeControls={false}
           />
-          {/* Pause icon overlay */}
           {isPaused && (
             <View style={styles.pauseOverlay}>
               <Ionicons name="play" size={60} color="rgba(255,255,255,0.7)" />
@@ -142,16 +140,14 @@ function ReelItem({ post, isVisible, onCommentPress, onSharePress }: ReelItemPro
         ) : null}
       </View>
 
-      {/* Action buttons (right side) — mute is just above like */}
+      {/* Action buttons (right side) */}
       <View style={styles.actions}>
-        {/* Mute button — at top of action column, just above like */}
         <TouchableOpacity style={styles.actionBtn} onPress={handleMuteToggle} activeOpacity={0.7}>
           <View style={styles.muteCircle}>
             <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={20} color="#fff" />
           </View>
         </TouchableOpacity>
 
-        {/* Like */}
         <TouchableOpacity style={styles.actionBtn} onPress={handleLike} activeOpacity={0.8}>
           <Ionicons
             name={isLiked ? 'heart' : 'heart-outline'}
@@ -161,13 +157,11 @@ function ReelItem({ post, isVisible, onCommentPress, onSharePress }: ReelItemPro
           <Text style={styles.actionCount}>{formatCount(likeCount)}</Text>
         </TouchableOpacity>
 
-        {/* Comment */}
         <TouchableOpacity style={styles.actionBtn} onPress={() => onCommentPress(post)} activeOpacity={0.8}>
           <Ionicons name="chatbubble-outline" size={26} color="#fff" />
           <Text style={styles.actionCount}>{formatCount(commentCount)}</Text>
         </TouchableOpacity>
 
-        {/* Share */}
         <TouchableOpacity style={styles.actionBtn} onPress={() => onSharePress(post)} activeOpacity={0.8}>
           <Ionicons name="share-outline" size={26} color="#fff" />
           <Text style={styles.actionCount}>{formatCount(post.shares_count || 0)}</Text>
@@ -196,6 +190,21 @@ export default function ReelsScreen() {
   const [commentText, setCommentText] = useState('');
   const [loadingComments, setLoadingComments] = useState(false);
   const [postingComment, setPostingComment] = useState(false);
+
+  // Keyboard tracking for comment modal
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = (e: KeyboardEvent) => setKeyboardHeight(e.endCoordinates.height);
+    const onHide = () => setKeyboardHeight(0);
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   const loadReels = useCallback(async (pageNum: number, append = false) => {
     if (loadingMore.current && append) return;
@@ -263,7 +272,6 @@ export default function ReelsScreen() {
       const newComment = res.data?.comment || res.data;
       setComments((prev) => [newComment, ...prev]);
       setCommentText('');
-      // Update comment count in reels list
       setReels((prev) =>
         prev.map((r) =>
           r.id === commentPost.id
@@ -278,17 +286,19 @@ export default function ReelsScreen() {
     }
   }, [commentText, commentPost, postingComment]);
 
-  // Share handler
+  // Share handler — rich share with media URL + caption + branding
   const handleSharePress = useCallback(async (post: Post) => {
     try {
       const shareUrl = `https://noidacircle.com/post/${post.id}`;
-      const message = post.content
-        ? `${post.content.slice(0, 100)}${post.content.length > 100 ? '...' : ''}\n\n${shareUrl}`
-        : `Check out this reel on NoidaCircle!\n\n${shareUrl}`;
+      const caption = post.content
+        ? `${post.content.slice(0, 200)}${post.content.length > 200 ? '...' : ''}`
+        : 'Check out this reel on NoidaCircle!';
+      const message = `${caption}\n\nVia NoidaCircle.com\n${shareUrl}`;
+
       await Share.share({
         message,
-        url: shareUrl,
-        title: 'Share Reel',
+        url: post.media_url || shareUrl,
+        title: post.user?.full_name ? `${post.user.full_name} on NoidaCircle` : 'NoidaCircle',
       });
     } catch (err) {
       console.error('Share error:', err);
@@ -344,88 +354,90 @@ export default function ReelsScreen() {
         }
       />
 
-      {/* Comment Modal */}
+      {/* Comment Modal — keyboard-aware */}
       <Modal
         visible={commentModalVisible}
         transparent
         animationType="slide"
         onRequestClose={() => setCommentModalVisible(false)}
       >
-        <KeyboardAvoidingView
-          style={{ flex: 1 }}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        <TouchableOpacity
+          style={styles.commentModalOverlay}
+          activeOpacity={1}
+          onPress={() => setCommentModalVisible(false)}
         >
-          <TouchableOpacity
-            style={styles.commentModalOverlay}
-            activeOpacity={1}
-            onPress={() => setCommentModalVisible(false)}
+          <View
+            style={[
+              styles.commentModalContent,
+              { marginBottom: keyboardHeight > 0 ? keyboardHeight : 0 },
+            ]}
+            onStartShouldSetResponder={() => true}
           >
-            <View
-              style={styles.commentModalContent}
-              onStartShouldSetResponder={() => true}
-            >
-              {/* Modal handle */}
-              <View style={styles.commentModalHandle} />
-              <Text style={styles.commentModalTitle}>
-                Comments {commentPost ? `(${commentPost.comments_count || 0})` : ''}
-              </Text>
+            {/* Modal handle */}
+            <View style={styles.commentModalHandle} />
+            <Text style={styles.commentModalTitle}>
+              Comments {commentPost ? `(${commentPost.comments_count || 0})` : ''}
+            </Text>
 
-              {/* Comments list */}
-              {loadingComments ? (
-                <View style={styles.commentLoadingContainer}>
-                  <ActivityIndicator size="small" color={colors.primary[500]} />
-                </View>
-              ) : (
-                <ScrollView style={styles.commentsList} showsVerticalScrollIndicator={false}>
-                  {comments.length === 0 ? (
-                    <Text style={styles.noCommentsText}>No comments yet. Be the first!</Text>
-                  ) : (
-                    comments.map((comment) => (
-                      <View key={comment.id} style={styles.commentItem}>
-                        <Avatar
-                          uri={comment.user?.profile_image_url}
-                          name={comment.user?.full_name || comment.user?.username || ''}
-                          size={32}
-                        />
-                        <View style={styles.commentBody}>
-                          <Text style={styles.commentUsername}>
-                            {comment.user?.full_name || comment.user?.username || 'User'}
-                          </Text>
-                          <Text style={styles.commentContent}>{comment.content}</Text>
-                          <Text style={styles.commentTime}>{timeAgo(comment.created_at)}</Text>
-                        </View>
-                      </View>
-                    ))
-                  )}
-                </ScrollView>
-              )}
-
-              {/* Comment input */}
-              <View style={styles.commentInputRow}>
-                <TextInput
-                  style={styles.commentInput}
-                  placeholder="Add a comment..."
-                  placeholderTextColor="#999"
-                  value={commentText}
-                  onChangeText={setCommentText}
-                  multiline
-                  maxLength={500}
-                />
-                <TouchableOpacity
-                  onPress={handlePostComment}
-                  disabled={!commentText.trim() || postingComment}
-                  style={[styles.commentSendBtn, { opacity: commentText.trim() ? 1 : 0.4 }]}
-                >
-                  {postingComment ? (
-                    <ActivityIndicator size="small" color="#fff" />
-                  ) : (
-                    <Ionicons name="send" size={18} color="#fff" />
-                  )}
-                </TouchableOpacity>
+            {/* Comments list */}
+            {loadingComments ? (
+              <View style={styles.commentLoadingContainer}>
+                <ActivityIndicator size="small" color={colors.primary[500]} />
               </View>
+            ) : (
+              <ScrollView
+                style={styles.commentsList}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+              >
+                {comments.length === 0 ? (
+                  <Text style={styles.noCommentsText}>No comments yet. Be the first!</Text>
+                ) : (
+                  comments.map((comment) => (
+                    <View key={comment.id} style={styles.commentItem}>
+                      <Avatar
+                        uri={comment.user?.profile_image_url}
+                        name={comment.user?.full_name || comment.user?.username || ''}
+                        size={32}
+                      />
+                      <View style={styles.commentBody}>
+                        <Text style={styles.commentUsername}>
+                          {comment.user?.full_name || comment.user?.username || 'User'}
+                        </Text>
+                        <Text style={styles.commentContent}>{comment.content}</Text>
+                        <Text style={styles.commentTime}>{timeAgo(comment.created_at)}</Text>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </ScrollView>
+            )}
+
+            {/* Comment input */}
+            <View style={styles.commentInputRow}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Add a comment..."
+                placeholderTextColor="#999"
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+                maxLength={500}
+              />
+              <TouchableOpacity
+                onPress={handlePostComment}
+                disabled={!commentText.trim() || postingComment}
+                style={[styles.commentSendBtn, { opacity: commentText.trim() ? 1 : 0.4 }]}
+              >
+                {postingComment ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="send" size={18} color="#fff" />
+                )}
+              </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
+          </View>
+        </TouchableOpacity>
       </Modal>
     </View>
   );
