@@ -111,6 +111,23 @@ export default function LoginScreen({ navigation }: Props) {
             loading={loading}
             size="lg"
           />
+
+          {/* Divider */}
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>or</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* Phone Login */}
+          <TouchableOpacity
+            style={styles.phoneLoginBtn}
+            onPress={() => navigation.navigate('PhoneLogin')}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="phone-portrait-outline" size={20} color={colors.primary[500]} />
+            <Text style={styles.phoneLoginText}>Sign in with Phone Number</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Footer */}
@@ -213,6 +230,37 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   footerLink: {
+    color: colors.primary[500],
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#e5e7eb',
+  },
+  dividerText: {
+    color: colors.light.muted,
+    fontSize: 13,
+    fontWeight: '500',
+    paddingHorizontal: 12,
+  },
+  phoneLoginBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    borderWidth: 1.5,
+    borderColor: colors.primary[500],
+    borderRadius: 12,
+    paddingVertical: 14,
+  },
+  phoneLoginText: {
     color: colors.primary[500],
     fontSize: 15,
     fontWeight: '600',
