@@ -9,7 +9,9 @@ interface PostsState {
   page: number;
   hasMore: boolean;
   error: string | null;
+  feedType: string;
 
+  setFeedType: (type: string) => void;
   fetchFeed: (page?: number) => Promise<void>;
   refreshFeed: () => Promise<void>;
   loadMore: () => Promise<void>;
@@ -27,6 +29,12 @@ const usePostsStore = create<PostsState>((set, get) => ({
   page: 1,
   hasMore: true,
   error: null,
+  feedType: 'all',
+
+  setFeedType: (type: string) => {
+    set({ feedType: type, posts: [], page: 1, hasMore: true });
+    get().fetchFeed(1);
+  },
 
   fetchFeed: async (page = 1) => {
     const state = get();
@@ -34,7 +42,7 @@ const usePostsStore = create<PostsState>((set, get) => ({
 
     set({ loading: page === 1, error: null });
     try {
-      const res = await postsAPI.getFeed(page, 15);
+      const res = await postsAPI.getFeed(page, 15, state.feedType);
       const { posts: newPosts, pagination } = res.data;
 
       set({
@@ -145,7 +153,7 @@ const usePostsStore = create<PostsState>((set, get) => ({
   },
 
   reset: () => {
-    set({ posts: [], loading: false, refreshing: false, page: 1, hasMore: true, error: null });
+    set({ posts: [], loading: false, refreshing: false, page: 1, hasMore: true, error: null, feedType: 'all' });
   },
 }));
 
