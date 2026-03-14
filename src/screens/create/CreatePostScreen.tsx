@@ -34,7 +34,8 @@ export default function CreatePostScreen() {
   const navigation = useNavigation();
 
   const [content, setContent] = useState('');
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
   const [publishing, setPublishing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
 
@@ -50,11 +51,25 @@ export default function CreatePostScreen() {
       mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
-      aspect: [4, 3],
     });
 
     if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].uri);
+      setSelectedMedia(result.assets[0].uri);
+      setMediaType('image');
+    }
+  }, []);
+
+  const pickVideo = useCallback(async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['videos'],
+      allowsEditing: true,
+      quality: 0.7,
+      videoMaxDuration: 120,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedMedia(result.assets[0].uri);
+      setMediaType('video');
     }
   }, []);
 
@@ -68,16 +83,36 @@ export default function CreatePostScreen() {
     const result = await ImagePicker.launchCameraAsync({
       allowsEditing: true,
       quality: 0.8,
-      aspect: [4, 3],
     });
 
     if (!result.canceled && result.assets[0]) {
-      setSelectedImage(result.assets[0].uri);
+      setSelectedMedia(result.assets[0].uri);
+      setMediaType('image');
     }
   }, []);
 
-  const removeImage = useCallback(() => {
-    setSelectedImage(null);
+  const recordVideo = useCallback(async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'Camera access is required to record videos.');
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['videos'],
+      quality: 0.7,
+      videoMaxDuration: 60,
+    });
+
+    if (!result.canceled && result.assets[0]) {
+      setSelectedMedia(result.assets[0].uri);
+      setMediaType('video');
+    }
+  }, []);
+
+  const removeMedia = useCallback(() => {
+    setSelectedMedia(null);
+    setMediaType(null);
   }, []);
 
   const handlePublish = useCallback(async () => {
@@ -86,14 +121,14 @@ export default function CreatePostScreen() {
     setPublishing(true);
     try {
       let mediaUrl: string | undefined;
-      let mediaType: 'image' | undefined;
+      let uploadMediaType: 'image' | 'video' | undefined;
 
-      // Upload image if selected
-      if (selectedImage) {
-        setUploadProgress('Uploading image...');
-        const mimeType = getMimeType(selectedImage);
-        mediaUrl = await uploadFile(selectedImage, 'posts', mimeType);
-        mediaType = 'image';
+      // Upload media if selected
+      if (selectedMedia && mediaType) {
+        setUploadProgress(mediaType === 'video' ? 'Uploading video...' : 'Uploading image...');
+        const mimeType = getMimeType(selectedMedia);
+        mediaUrl = await uploadFile(selectedMedia, 'posts', mimeType);
+        uploadMediaType = mediaType;
       }
 
       setUploadProgress('Publishing...');
@@ -105,7 +140,7 @@ export default function CreatePostScreen() {
 
       if (mediaUrl) {
         postData.media_url = mediaUrl;
-        postData.media_type = mediaType;
+        postData.media_type = uploadMediaType;
       }
 
       const res = await postsAPI.create(postData);
@@ -129,7 +164,8 @@ export default function CreatePostScreen() {
 
       // Reset form
       setContent('');
-      setSelectedImage(null);
+      setSelectedMedia(null);
+      setMediaType(null);
       setUploadProgress('');
 
       // Navigate to feed
@@ -151,7 +187,7 @@ export default function CreatePostScreen() {
       setPublishing(false);
       setUploadProgress('');
     }
-  }, [canPublish, content, selectedImage, user, addPost, navigation]);
+  }, [canPublish, content, selectedMedia, mediaType, user, addPost, navigation]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
@@ -234,22 +270,35 @@ export default function CreatePostScreen() {
             {content.length}/{MAX_CONTENT_LENGTH}
           </Text>
 
-          {/* Selected image preview */}
-          {selectedImage && (
-            <View style={styles.imagePreview}>
-              <Image
-                source={{ uri: selectedImage }}
-                style={styles.previewImage}
-                contentFit="cover"
-                transition={200}
-              />
+          {/* Selected media preview */}
+          {selectedMedia && (
+            <View style={styles.mediaPreview}>
+              {mediaType === 'image' ? (
+                <Image
+                  source={{ uri: selectedMedia }}
+                  style={styles.previewImage}
+                  contentFit="contain"
+                  transition={200}
+                />
+              ) : (
+                <View style={[styles.previewImage, styles.videoPreview]}>
+                  <Ionicons name="videocam" size={40} color="#fff" />
+                  <Text style={styles.videoPreviewText}>Video selected</Text>
+                </View>
+              )}
               <TouchableOpacity
-                onPress={removeImage}
-                style={styles.removeImageBtn}
+                onPress={removeMedia}
+                style={styles.removeMediaBtn}
                 disabled={publishing}
               >
                 <Ionicons name="close-circle" size={28} color="#fff" />
               </TouchableOpacity>
+              {mediaType === 'video' && (
+                <View style={styles.mediaTypeBadge}>
+                  <Ionicons name="videocam" size={14} color="#fff" />
+                  <Text style={styles.mediaTypeBadgeText}>Video</Text>
+                </View>
+              )}
             </View>
           )}
         </ScrollView>
@@ -262,6 +311,15 @@ export default function CreatePostScreen() {
             disabled={publishing}
           >
             <Ionicons name="image-outline" size={24} color={colors.primary[500]} />
+            <Text style={[styles.toolLabel, { color: mutedColor }]}>Photo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={pickVideo}
+            style={styles.toolBtn}
+            disabled={publishing}
+          >
+            <Ionicons name="videocam-outline" size={24} color={colors.primary[500]} />
+            <Text style={[styles.toolLabel, { color: mutedColor }]}>Video</Text>
           </TouchableOpacity>
           <TouchableOpacity
             onPress={takePhoto}
@@ -269,6 +327,15 @@ export default function CreatePostScreen() {
             disabled={publishing}
           >
             <Ionicons name="camera-outline" size={24} color={colors.primary[500]} />
+            <Text style={[styles.toolLabel, { color: mutedColor }]}>Camera</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={recordVideo}
+            style={styles.toolBtn}
+            disabled={publishing}
+          >
+            <Ionicons name="film-outline" size={24} color={colors.primary[500]} />
+            <Text style={[styles.toolLabel, { color: mutedColor }]}>Reel</Text>
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -344,7 +411,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 8,
   },
-  imagePreview: {
+  mediaPreview: {
     marginTop: 8,
     borderRadius: 12,
     overflow: 'hidden',
@@ -352,25 +419,58 @@ const styles = StyleSheet.create({
   },
   previewImage: {
     width: '100%',
-    height: 240,
+    height: 280,
     borderRadius: 12,
   },
-  removeImageBtn: {
+  videoPreview: {
+    backgroundColor: '#1a1a1a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  videoPreviewText: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 14,
+    marginTop: 8,
+  },
+  removeMediaBtn: {
     position: 'absolute',
     top: 8,
     right: 8,
     backgroundColor: 'rgba(0,0,0,0.5)',
     borderRadius: 14,
   },
+  mediaTypeBadge: {
+    position: 'absolute',
+    bottom: 8,
+    left: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  mediaTypeBadgeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   toolbar: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-around',
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderTopWidth: 0.5,
-    gap: 20,
   },
   toolBtn: {
+    alignItems: 'center',
     padding: 4,
+    gap: 2,
+  },
+  toolLabel: {
+    fontSize: 10,
+    fontWeight: '500',
   },
 });

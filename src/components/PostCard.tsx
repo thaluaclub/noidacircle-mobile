@@ -15,6 +15,7 @@ import { timeAgo, formatCount } from '../utils/formatters';
 import type { Post } from '../types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const MEDIA_WIDTH = SCREEN_WIDTH - 32;
 const MAX_CONTENT_LENGTH = 200;
 
 interface PostCardProps {
@@ -37,6 +38,7 @@ function PostCard({
   dark = false,
 }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
+  const [imageAspect, setImageAspect] = useState(4 / 3);
   const isLong = post.content.length > MAX_CONTENT_LENGTH;
 
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -56,6 +58,16 @@ function PostCard({
     isLong && !expanded
       ? post.content.substring(0, MAX_CONTENT_LENGTH).trim() + '...'
       : post.content;
+
+  // Calculate image height from actual image dimensions
+  const onImageLoad = useCallback((e: any) => {
+    const { width, height } = e.source || {};
+    if (width && height && width > 0) {
+      setImageAspect(width / height);
+    }
+  }, []);
+
+  const imageHeight = Math.min(MEDIA_WIDTH / imageAspect, 500);
 
   return (
     <TouchableOpacity
@@ -117,21 +129,30 @@ function PostCard({
         )}
       </View>
 
-      {/* Media */}
+      {/* Media - Image */}
       {post.media_url && post.media_type === 'image' && (
         <Image
           source={{ uri: post.media_url }}
-          style={styles.media}
-          contentFit="cover"
+          style={[styles.media, { height: imageHeight }]}
+          contentFit="contain"
           transition={300}
           recyclingKey={post.id}
+          onLoad={onImageLoad}
         />
       )}
 
+      {/* Media - Video thumbnail with play button */}
       {post.media_url && post.media_type === 'video' && (
-        <View style={[styles.media, styles.videoPlaceholder]}>
-          <Ionicons name="play-circle" size={48} color="#fff" />
-        </View>
+        <TouchableOpacity
+          activeOpacity={0.8}
+          onPress={onPress}
+          style={[styles.media, { height: 300 }, styles.videoPlaceholder]}
+        >
+          <View style={styles.playButton}>
+            <Ionicons name="play" size={32} color="#fff" />
+          </View>
+          <Text style={styles.videoLabel}>Tap to play video</Text>
+        </TouchableOpacity>
       )}
 
       {/* Action Bar */}
@@ -266,16 +287,30 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   media: {
-    width: SCREEN_WIDTH - 32,
-    height: 240,
+    width: MEDIA_WIDTH,
     borderRadius: 12,
     marginTop: 10,
     backgroundColor: colors.light.border,
+    overflow: 'hidden',
   },
   videoPlaceholder: {
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#1a1a1a',
+  },
+  playButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: 'rgba(59,130,246,0.85)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingLeft: 4,
+  },
+  videoLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 13,
+    marginTop: 8,
   },
   actionBar: {
     flexDirection: 'row',

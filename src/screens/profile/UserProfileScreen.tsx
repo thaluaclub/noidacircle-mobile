@@ -17,10 +17,14 @@ import { usersAPI, postsAPI, followAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { formatCount } from '../../utils/formatters';
 import type { Post } from '../../types';
-import type { ProfileStackParamList } from '../../navigation/ProfileStack';
+type UserProfileParams = {
+  UserProfile: { userId: string };
+  FollowList: { userId: string; tab: string; username: string };
+  PostDetail: { postId: string; post?: Post };
+};
 
-type Route = RouteProp<ProfileStackParamList, 'UserProfile'>;
-type Nav = NativeStackNavigationProp<ProfileStackParamList, 'UserProfile'>;
+type Route = RouteProp<UserProfileParams, 'UserProfile'>;
+type Nav = NativeStackNavigationProp<UserProfileParams, 'UserProfile'>;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const TILE = (SCREEN_WIDTH - 4) / 3;

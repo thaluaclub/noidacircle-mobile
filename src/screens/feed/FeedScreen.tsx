@@ -56,10 +56,10 @@ export default function FeedScreen() {
   );
 
   const handleUserPress = useCallback(
-    (_userId: string) => {
-      // Will navigate to user profile in future
+    (userId: string) => {
+      navigation.navigate('UserProfile', { userId });
     },
-    []
+    [navigation]
   );
 
   const renderItem = useCallback(
