@@ -6,7 +6,7 @@ const API_BASE = 'https://noidacircle-api-backend.vercel.app';
 const api = axios.create({
   baseURL: `${API_BASE}/api`,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 60000,
+  timeout: 120000,
 });
 
 // Token interceptor — reads from AsyncStorage
