@@ -13,7 +13,7 @@ import Button from '../../components/Button';
 import EmptyState from '../../components/EmptyState';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
-import { usersAPI, postsAPI, followAPI } from '../../services/api';
+import { usersAPI, postsAPI, followAPI, messagesAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { formatCount } from '../../utils/formatters';
 import type { Post } from '../../types';
@@ -49,6 +49,7 @@ export default function UserProfileScreen() {
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
+  const [messageLoading, setMessageLoading] = useState(false);
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -136,7 +137,29 @@ export default function UserProfileScreen() {
       {!isOwnProfile && (
         <View style={styles.followActions}>
           <Button title={following ? 'Following' : 'Follow'} variant={following ? 'outline' : 'primary'} size="sm" style={{ flex: 1, marginRight: 8 }} onPress={handleFollow} />
-          <Button title="Message" variant="outline" size="sm" style={{ flex: 1 }} onPress={() => {}} />
+          <Button title={messageLoading ? "Opening..." : "Message"} variant="outline" size="sm" style={{ flex: 1 }} onPress={async () => {
+            if (messageLoading || !profile) return;
+            setMessageLoading(true);
+            try {
+              const res = await messagesAPI.createConversation({ participantId: profile.id });
+              const conv = res.data.conversation || res.data;
+              const rootNav = navigation.getParent()?.getParent() || navigation;
+              (rootNav as any).navigate('MessagesTab', {
+                screen: 'Chat',
+                params: {
+                  conversationId: conv.id,
+                  recipientName: profile.full_name || profile.username,
+                  recipientAvatar: profile.profile_image_url,
+                },
+              });
+            } catch {
+              // Fallback: navigate to messages tab
+              const rootNav = navigation.getParent()?.getParent() || navigation;
+              (rootNav as any).navigate('MessagesTab');
+            } finally {
+              setMessageLoading(false);
+            }
+          }} />
         </View>
       )}
     </View>
