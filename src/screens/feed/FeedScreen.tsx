@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Platform,
   ViewToken,
+  Alert,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -19,6 +20,7 @@ import { FeedSkeleton } from '../../components/Skeleton';
 import EmptyState from '../../components/EmptyState';
 import usePostsStore from '../../store/postsStore';
 import useThemeStore from '../../store/themeStore';
+import { postsAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 import type { Post } from '../../types';
 import type { FeedStackParamList } from '../../navigation/FeedStack';
@@ -38,6 +40,7 @@ export default function FeedScreen() {
     loadMore,
     toggleLike,
     toggleBookmark,
+    removePost,
   } = usePostsStore();
   const navigation = useNavigation<FeedNav>();
   const listRef = useRef<FlashList<Post>>(null);
@@ -95,6 +98,25 @@ export default function FeedScreen() {
     [navigation]
   );
 
+  const handleEdit = useCallback(
+    (post: Post) => {
+      navigation.navigate('EditPost', { post });
+    },
+    [navigation]
+  );
+
+  const handleDelete = useCallback(
+    async (postId: string) => {
+      try {
+        await postsAPI.delete(postId);
+        removePost(postId);
+      } catch (err: any) {
+        Alert.alert('Error', err.response?.data?.error || 'Failed to delete post');
+      }
+    },
+    [removePost]
+  );
+
   const renderItem = useCallback(
     ({ item }: { item: Post }) => (
       <PostCard
@@ -107,9 +129,11 @@ export default function FeedScreen() {
         onComment={() => handlePostPress(item)}
         onUserPress={handleUserPress}
         onReelPress={handleReelPress}
+        onEdit={handleEdit}
+        onDelete={handleDelete}
       />
     ),
-    [dark, visiblePostIds, toggleLike, toggleBookmark, handlePostPress, handleUserPress, handleReelPress]
+    [dark, visiblePostIds, toggleLike, toggleBookmark, handlePostPress, handleUserPress, handleReelPress, handleEdit, handleDelete]
   );
 
   const renderFooter = useCallback(() => {
@@ -142,6 +166,9 @@ export default function FeedScreen() {
       <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <Text style={[styles.logo, { color: textColor }]}>NoidaCircle</Text>
         <View style={styles.headerIcons}>
+          <TouchableOpacity onPress={() => navigation.navigate('Explore' as any)} style={styles.headerIconBtn}>
+            <Ionicons name="search-outline" size={24} color={textColor} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Communities' as any)} style={styles.headerIconBtn}>
             <Ionicons name="people-outline" size={24} color={textColor} />
           </TouchableOpacity>
