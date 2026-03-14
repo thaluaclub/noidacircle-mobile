@@ -1,21 +1,10 @@
-import React, { useRef, useEffect, useState, useCallback, memo } from 'react';
+import React, { useEffect, useState, useCallback, memo } from 'react';
 import { View, TouchableOpacity, StyleSheet, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { VideoView, useVideoPlayer } from 'expo-video';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const VIDEO_WIDTH = SCREEN_WIDTH - 32;
-
-// We'll dynamically import expo-video to avoid crashes if not installed
-let VideoView: any = null;
-let useVideoPlayer: any = null;
-
-try {
-  const expoVideo = require('expo-video');
-  VideoView = expoVideo.VideoView;
-  useVideoPlayer = expoVideo.useVideoPlayer;
-} catch {
-  // expo-video not available
-}
 
 interface AutoPlayVideoProps {
   uri: string;
@@ -28,26 +17,18 @@ function AutoPlayVideo({ uri, isVisible, dark = false, height = 300 }: AutoPlayV
   const [muted, setMuted] = useState(true);
   const [showControls, setShowControls] = useState(false);
 
-  // If expo-video is not installed, show a placeholder
-  if (!useVideoPlayer || !VideoView) {
-    return (
-      <View style={[styles.container, { height, backgroundColor: '#1a1a1a' }]}>
-        <Ionicons name="videocam" size={40} color="rgba(255,255,255,0.5)" />
-      </View>
-    );
-  }
-
-  // Use the expo-video hook
-  const player = useVideoPlayer(uri, (p: any) => {
-    p.loop = true;
-    p.muted = true;
-    p.play();
-  });
+  const player = useVideoPlayer(
+    uri,
+    (p) => {
+      p.loop = true;
+      p.muted = true;
+      p.play();
+    }
+  );
 
   // Auto play/pause based on visibility
   useEffect(() => {
-    if (!player) return;
-    if (isVisible) {
+    if (!player) return;J    if (isVisible) {
       player.play();
     } else {
       player.pause();
@@ -62,12 +43,11 @@ function AutoPlayVideo({ uri, isVisible, dark = false, height = 300 }: AutoPlayV
   }, [muted, player]);
 
   const toggleMute = useCallback(() => {
-    setMuted(prev => !prev);
+    setMuted((prev) => !prev);
   }, []);
 
   const toggleControls = useCallback(() => {
-    setShowControls(prev => !prev);
-    // Auto-hide controls after 3 seconds
+    setShowControls(true);
     setTimeout(() => setShowControls(false), 3000);
   }, []);
 
@@ -84,9 +64,9 @@ function AutoPlayVideo({ uri, isVisible, dark = false, height = 300 }: AutoPlayV
         nativeControls={false}
       />
 
-      {/* Mute button - always visible */}
+      {/* Mute button */}
       <TouchableOpacity style={styles.muteBtn} onPress={toggleMute} activeOpacity={0.7}>
-        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
+        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={32} color="#fff" />
       </TouchableOpacity>
 
       {/* Play/Pause overlay */}
@@ -95,11 +75,8 @@ function AutoPlayVideo({ uri, isVisible, dark = false, height = 300 }: AutoPlayV
           <TouchableOpacity
             onPress={() => {
               if (player) {
-                if (isVisible) {
-                  player.pause();
-                } else {
-                  player.play();
-                }
+                if (isVisible) player.pause();
+                else player.play();
               }
             }}
           >
