@@ -100,7 +100,6 @@ export default function PostDetailScreen() {
       const newComment: Comment = res.data.comment || res.data;
 
       if (replyTo) {
-        // Add as reply inline
         setComments((prev) =>
           prev.map((c) =>
             c.id === replyTo.id
@@ -117,7 +116,6 @@ export default function PostDetailScreen() {
         setComments((prev) => [newComment, ...prev]);
       }
 
-      // Update post comment count
       if (post) {
         setPost({ ...post, comments_count: post.comments_count + 1 });
       }
@@ -134,7 +132,6 @@ export default function PostDetailScreen() {
   // Like comment
   const handleLikeComment = useCallback(
     async (comment: Comment) => {
-      // Optimistic
       setComments((prev) =>
         prev.map((c) =>
           c.id === comment.id
@@ -155,7 +152,6 @@ export default function PostDetailScreen() {
           await likesAPI.likeComment(comment.id);
         }
       } catch {
-        // Revert
         setComments((prev) =>
           prev.map((c) =>
             c.id === comment.id
@@ -377,7 +373,6 @@ export default function PostDetailScreen() {
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
         <FlatList
           data={comments}
@@ -390,9 +385,10 @@ export default function PostDetailScreen() {
           onEndReachedThreshold={0.5}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         />
 
-        {/* Comment Input */}
+        {/* Comment Input - stays above keyboard */}
         <View
           style={[
             styles.inputBar,
