@@ -13,7 +13,7 @@ import Button from '../../components/Button';
 import EmptyState from '../../components/EmptyState';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
-import { usersAPI, postsAPI, followAPI, messagesAPI } from '../../services/api';
+import { usersAPI, postsAPI, followAPI, messagesAPI, notificationsAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { formatCount } from '../../utils/formatters';
 import type { Post } from '../../types';
@@ -34,7 +34,7 @@ interface UserProfile {
   profile_image_url: string | null; cover_image_url: string | null;
   location: string | null; is_verified: boolean; is_private: boolean;
   followers_count: number; following_count: number; posts_count: number;
-  is_following?: boolean;
+  is_following?: boolean; account_type?: string;
 }
 
 export default function UserProfileScreen() {
@@ -50,6 +50,8 @@ export default function UserProfileScreen() {
   const [following, setFollowing] = useState(false);
   const [followLoading, setFollowLoading] = useState(false);
   const [messageLoading, setMessageLoading] = useState(false);
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifLoading, setNotifLoading] = useState(false);
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -67,6 +69,13 @@ export default function UserProfileScreen() {
         setProfile(p);
         setFollowing(p.is_following || false);
         setPosts(postsRes.data.posts || postsRes.data);
+        // Check notification subscription
+        try {
+          const subRes = await notificationsAPI.checkSubscription(userId);
+          setNotifEnabled(subRes.data?.subscribed || false);
+        } catch {
+          // API may not exist yet, default to false
+        }
       } catch {} finally {
         setLoading(false);
       }
@@ -90,6 +99,24 @@ export default function UserProfileScreen() {
       setFollowLoading(false);
     }
   }, [profile, following, followLoading]);
+
+  const handleToggleNotifications = useCallback(async () => {
+    if (!profile || notifLoading) return;
+    setNotifLoading(true);
+    const wasEnabled = notifEnabled;
+    setNotifEnabled(!wasEnabled);
+    try {
+      if (wasEnabled) {
+        await notificationsAPI.unsubscribe(profile.id);
+      } else {
+        await notificationsAPI.subscribe(profile.id);
+      }
+    } catch {
+      setNotifEnabled(wasEnabled);
+    } finally {
+      setNotifLoading(false);
+    }
+  }, [profile, notifEnabled, notifLoading]);
 
   if (loading) {
     return (
@@ -117,6 +144,12 @@ export default function UserProfileScreen() {
           {profile.is_verified && <Ionicons name="checkmark-circle" size={18} color={colors.primary[500]} style={{ marginLeft: 4 }} />}
         </View>
         <Text style={[styles.handle, { color: mutedColor }]}>@{profile.username}</Text>
+        {profile.account_type && profile.account_type !== 'individual' && (
+          <View style={styles.accountTypeBadge}>
+            <Ionicons name={profile.account_type === 'business' ? 'briefcase' : profile.account_type === 'brand' ? 'pricetag' : 'flag'} size={12} color={colors.primary[500]} />
+            <Text style={styles.accountTypeText}>{profile.account_type.charAt(0).toUpperCase() + profile.account_type.slice(1)}</Text>
+          </View>
+        )}
         {profile.bio ? <Text style={[styles.bio, { color: mutedColor }]}>{profile.bio}</Text> : null}
         {profile.location ? (
           <View style={styles.locationRow}>
@@ -137,7 +170,19 @@ export default function UserProfileScreen() {
       {!isOwnProfile && (
         <View style={styles.followActions}>
           <Button title={following ? 'Following' : 'Follow'} variant={following ? 'outline' : 'primary'} size="sm" style={{ flex: 1, marginRight: 8 }} onPress={handleFollow} />
-          <Button title={messageLoading ? "Opening..." : "Message"} variant="outline" size="sm" style={{ flex: 1 }} onPress={async () => {
+          <TouchableOpacity
+            style={[styles.notifBtn, notifEnabled && styles.notifBtnActive]}
+            onPress={handleToggleNotifications}
+            disabled={notifLoading}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={notifEnabled ? 'notifications' : 'notifications-outline'}
+              size={18}
+              color={notifEnabled ? '#fff' : textColor}
+            />
+          </TouchableOpacity>
+          <Button title={messageLoading ? "..." : "Message"} variant="outline" size="sm" style={{ flex: 1, marginLeft: 8 }} onPress={async () => {
             if (messageLoading || !profile) return;
             setMessageLoading(true);
             try {
@@ -153,7 +198,6 @@ export default function UserProfileScreen() {
                 },
               });
             } catch {
-              // Fallback: navigate to messages tab
               const rootNav = navigation.getParent()?.getParent() || navigation;
               (rootNav as any).navigate('MessagesTab');
             } finally {
@@ -218,6 +262,10 @@ const styles = StyleSheet.create({
   stat: { alignItems: 'center' },
   statNum: { fontSize: 18, fontWeight: '700' },
   statLabel: { fontSize: 12, marginTop: 2 },
-  followActions: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 16, marginBottom: 16 },
+  followActions: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, marginTop: 16, marginBottom: 16 },
+  notifBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, borderColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' },
+  notifBtnActive: { backgroundColor: colors.primary[500], borderColor: colors.primary[500] },
   textTile: { width: TILE, height: TILE, margin: 1, padding: 6, justifyContent: 'center' },
+  accountTypeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: 'rgba(59,130,246,0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  accountTypeText: { fontSize: 12, fontWeight: '600', color: colors.primary[500] },
 });
