@@ -7,7 +7,9 @@ interface User {
   username: string;
   email: string;
   display_name?: string;
+  full_name?: string;
   avatar_url?: string;
+  profile_image_url?: string;
   bio?: string;
   location?: string;
   is_verified?: boolean;

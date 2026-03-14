@@ -175,4 +175,11 @@ export const communitiesAPI = {
     api.put(`/communities/admin/reject/${id}`),
 };
 
+// Verification API
+export const verificationAPI = {
+  apply: (data: { reason: string; document_url?: string; social_links?: string; website_url?: string }) =>
+    api.post('/verification/apply', data),
+  myStatus: () => api.get('/verification/my-status'),
+};
+
 export default api;

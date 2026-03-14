@@ -12,7 +12,7 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import PostCard from '../../components/PostCard';
 import { FeedSkeleton } from '../../components/Skeleton';
@@ -40,6 +40,20 @@ export default function FeedScreen() {
     toggleBookmark,
   } = usePostsStore();
   const navigation = useNavigation<FeedNav>();
+  const listRef = useRef<FlashList<Post>>(null);
+
+  // Scroll to top when Home tab is pressed while already on Feed
+  useEffect(() => {
+    const parent = navigation.getParent();
+    if (!parent) return;
+    const unsubscribe = parent.addListener('tabPress' as any, (e: any) => {
+      const isFocused = navigation.isFocused();
+      if (isFocused && listRef.current) {
+        listRef.current.scrollToOffset({ offset: 0, animated: true });
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   const [visiblePostIds, setVisiblePostIds] = useState<Set<string>>(new Set());
 
@@ -119,13 +133,14 @@ export default function FeedScreen() {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <Text style={[styles.logo, { color: textColor }]}>NoidaCircle</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIcons}>
-          <Ionicons
-            name="notifications-outline"
-            size={24}
-            color={textColor}
-          />
-        </TouchableOpacity>
+        <View style={styles.headerIcons}>
+          <TouchableOpacity onPress={() => navigation.navigate('Communities' as any)} style={styles.headerIconBtn}>
+            <Ionicons name="people-outline" size={24} color={textColor} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Notifications')} style={styles.headerIconBtn}>
+            <Ionicons name="notifications-outline" size={24} color={textColor} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Error Banner */}
@@ -137,6 +152,7 @@ export default function FeedScreen() {
 
       {/* Feed List */}
       <FlashList
+        ref={listRef}
         data={posts}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
@@ -181,7 +197,10 @@ const styles = StyleSheet.create({
   headerIcons: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 16,
+    gap: 4,
+  },
+  headerIconBtn: {
+    padding: 6,
   },
   errorBanner: {
     backgroundColor: colors.error,

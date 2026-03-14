@@ -51,8 +51,9 @@ export default function SettingsScreen() {
       title: 'Account',
       items: [
         { icon: 'person-outline', label: 'Edit Profile', onPress: () => navigation.goBack() },
+        { icon: 'shield-checkmark-outline', label: 'Request Verification', onPress: () => (navigation as any).navigate('Verification') },
         { icon: 'lock-closed-outline', label: 'Privacy', onPress: () => {} },
-        { icon: 'notifications-outline', label: 'Push Notifications', onPress: () => {} },
+        { icon: 'notifications-outline', label: 'Push Notifications', onPress: () => Linking.openSettings() },
         { icon: 'shield-outline', label: 'Security', onPress: () => {} },
       ],
     },
@@ -86,7 +87,7 @@ export default function SettingsScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {/* User card */}
         <View style={[styles.userCard, { backgroundColor: cardBg }]}>
-          <Avatar uri={user?.avatar_url} name={user?.display_name || user?.username || ''} size={50} />
+          <Avatar uri={user?.avatar_url || user?.profile_image_url} name={user?.display_name || user?.full_name || user?.username || ''} size={50} />
           <View style={styles.userInfo}>
             <Text style={[styles.userName, { color: textColor }]}>{user?.display_name || user?.username}</Text>
             <Text style={[styles.userEmail, { color: mutedColor }]}>{user?.email}</Text>

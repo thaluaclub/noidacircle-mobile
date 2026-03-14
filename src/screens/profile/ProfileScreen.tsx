@@ -45,8 +45,8 @@ export default function ProfileScreen() {
   const renderHeader = useCallback(() => (
     <View>
       <View style={styles.profileSection}>
-        <Avatar uri={user?.avatar_url} name={user?.display_name || user?.username || ''} size={80} />
-        <Text style={[styles.displayName, { color: textColor }]}>{user?.display_name || user?.username}</Text>
+        <Avatar uri={user?.avatar_url || user?.profile_image_url} name={user?.display_name || user?.full_name || user?.username || ''} size={80} />
+        <Text style={[styles.displayName, { color: textColor }]}>{user?.display_name || user?.full_name || user?.username}</Text>
         {user?.bio ? <Text style={[styles.bio, { color: mutedColor }]}>{user.bio}</Text> : null}
         {user?.location ? (
           <View style={styles.locationRow}>
