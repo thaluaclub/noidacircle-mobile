@@ -46,9 +46,11 @@ export async function uploadFile(
 
       if (presignedUrl && fileUrl) {
         // Upload directly to S3 using expo-file-system
+        // Use raw value 0 instead of FileSystem.FileSystemUploadType.BINARY_CONTENT
+        // because the enum may be undefined in some Expo SDK versions
         const uploadResult = await FileSystem.uploadAsync(presignedUrl, uri, {
           httpMethod: 'PUT',
-          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          uploadType: 0 as any,
           headers: {
             'Content-Type': fileType,
           },
@@ -68,8 +70,10 @@ export async function uploadFile(
 
   // Method 2: Base64 upload (through backend)
   try {
+    // Use raw string 'base64' instead of FileSystem.EncodingType.Base64
+    // because the enum may be undefined in some Expo SDK versions
     const base64Data = await FileSystem.readAsStringAsync(uri, {
-      encoding: FileSystem.EncodingType.Base64,
+      encoding: 'base64' as any,
     });
 
     const base64Res = await fetch(`${API_BASE}/api/upload/base64`, {
