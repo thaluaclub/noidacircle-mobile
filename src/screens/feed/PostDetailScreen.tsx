@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   StyleSheet,
-  KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
   Alert,
@@ -25,6 +24,7 @@ import { commentsAPI, likesAPI, postsAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 import { timeAgo } from '../../utils/formatters';
 import type { Comment, Post } from '../../types';
+import useKeyboardHeight from '../../hooks/useKeyboardHeight';
 import type { FeedStackParamList } from '../../navigation/FeedStack';
 
 type DetailRoute = RouteProp<FeedStackParamList, 'PostDetail'>;
@@ -47,6 +47,7 @@ export default function PostDetailScreen() {
   const [hasMore, setHasMore] = useState(true);
   const [replyTo, setReplyTo] = useState<Comment | null>(null);
   const inputRef = useRef<TextInput>(null);
+  const keyboardHeight = useKeyboardHeight();
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -370,10 +371,7 @@ export default function PostDetailScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
+      <View style={{ flex: 1 }}>
         <FlatList
           data={comments}
           renderItem={renderComment}
@@ -395,6 +393,7 @@ export default function PostDetailScreen() {
             {
               backgroundColor: bg,
               borderTopColor: borderColor,
+              marginBottom: keyboardHeight > 0 ? keyboardHeight : 0,
             },
           ]}
         >
@@ -452,7 +451,7 @@ export default function PostDetailScreen() {
             </TouchableOpacity>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
