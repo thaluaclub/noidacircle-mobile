@@ -22,8 +22,16 @@ export default function EditProfileScreen() {
   const [displayName, setDisplayName] = useState(user?.display_name || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [location, setLocation] = useState(user?.location || '');
+  const [accountType, setAccountType] = useState(user?.account_type || 'individual');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const ACCOUNT_TYPES = [
+    { key: 'individual', label: 'Individual', icon: 'person-outline', desc: 'Personal account' },
+    { key: 'business', label: 'Business', icon: 'briefcase-outline', desc: 'Company or startup' },
+    { key: 'brand', label: 'Brand', icon: 'pricetag-outline', desc: 'Product or brand page' },
+    { key: 'page', label: 'Page', icon: 'flag-outline', desc: 'Public figure or community' },
+  ];
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -57,11 +65,18 @@ export default function EditProfileScreen() {
         display_name: displayName.trim(),
         bio: bio.trim(),
         location: location.trim(),
+        account_type: accountType,
       };
       if (avatar_url) data.avatar_url = avatar_url;
 
       await usersAPI.updateProfile(data);
-      setUser({ ...user!, ...data, avatar_url: avatar_url || user?.avatar_url });
+
+      // Also update account type via dedicated endpoint
+      try {
+        await usersAPI.updateAccountType({ account_type: accountType });
+      } catch {}
+
+      setUser({ ...user!, ...data, account_type: accountType, avatar_url: avatar_url || user?.avatar_url });
 
       Alert.alert('Saved', 'Profile updated successfully');
       navigation.goBack();
@@ -137,6 +152,34 @@ export default function EditProfileScreen() {
           />
         </View>
 
+        {/* Account Type */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: mutedColor }]}>Account Type</Text>
+          <View style={styles.accountTypeGrid}>
+            {ACCOUNT_TYPES.map((type) => {
+              const isSelected = accountType === type.key;
+              return (
+                <TouchableOpacity
+                  key={type.key}
+                  style={[
+                    styles.accountTypeCard,
+                    { borderColor: isSelected ? colors.primary[500] : borderColor, backgroundColor: isSelected ? (dark ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)') : inputBg },
+                  ]}
+                  onPress={() => setAccountType(type.key)}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name={type.icon as any} size={22} color={isSelected ? colors.primary[500] : mutedColor} />
+                  <Text style={[styles.accountTypeLabel, { color: isSelected ? colors.primary[500] : textColor }]}>{type.label}</Text>
+                  <Text style={[styles.accountTypeDesc, { color: mutedColor }]}>{type.desc}</Text>
+                  {isSelected && (
+                    <Ionicons name="checkmark-circle" size={16} color={colors.primary[500]} style={{ position: 'absolute', top: 8, right: 8 }} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+
         <Button
           title={saving ? 'Saving...' : 'Save Changes'}
           onPress={handleSave}
@@ -161,4 +204,8 @@ const styles = StyleSheet.create({
   input: { borderRadius: 10, borderWidth: 0.5, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   bioInput: { minHeight: 80, textAlignVertical: 'top' },
   charCount: { fontSize: 11, textAlign: 'right', marginTop: 4 },
+  accountTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+  accountTypeCard: { width: '47%', borderWidth: 1.5, borderRadius: 12, padding: 12, alignItems: 'center', position: 'relative' },
+  accountTypeLabel: { fontSize: 14, fontWeight: '600', marginTop: 6 },
+  accountTypeDesc: { fontSize: 11, marginTop: 2 },
 });
