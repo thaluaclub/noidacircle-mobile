@@ -47,6 +47,12 @@ export default function ProfileScreen() {
       <View style={styles.profileSection}>
         <Avatar uri={user?.avatar_url || user?.profile_image_url} name={user?.display_name || user?.full_name || user?.username || ''} size={80} />
         <Text style={[styles.displayName, { color: textColor }]}>{user?.display_name || user?.full_name || user?.username}</Text>
+        {user?.account_type && user.account_type !== 'individual' && (
+          <View style={styles.accountTypeBadge}>
+            <Ionicons name={user.account_type === 'business' ? 'briefcase' : user.account_type === 'brand' ? 'pricetag' : 'flag'} size={12} color={colors.primary[500]} />
+            <Text style={styles.accountTypeBadgeText}>{user.account_type.charAt(0).toUpperCase() + user.account_type.slice(1)}</Text>
+          </View>
+        )}
         {user?.bio ? <Text style={[styles.bio, { color: mutedColor }]}>{user.bio}</Text> : null}
         {user?.location ? (
           <View style={styles.locationRow}>
@@ -134,4 +140,6 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, marginTop: 2 },
   actions: { flexDirection: 'row', paddingHorizontal: 16, marginTop: 16, marginBottom: 16 },
   textTile: { width: TILE, height: TILE, margin: 1, padding: 6, justifyContent: 'center' },
+  accountTypeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: 'rgba(59,130,246,0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  accountTypeBadgeText: { fontSize: 12, fontWeight: '600', color: colors.primary[500] },
 });
