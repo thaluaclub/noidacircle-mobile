@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "com.noidacircle.app",
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "backgroundColor": "#3b82f6",
         "foregroundImage": "./assets/android-icon-foreground.png",
