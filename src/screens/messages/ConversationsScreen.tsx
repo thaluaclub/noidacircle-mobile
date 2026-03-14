@@ -89,7 +89,7 @@ export default function ConversationsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
       <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <Text style={[styles.headerTitle, { color: textColor }]}>Messages</Text>
-        <TouchableOpacity>
+        <TouchableOpacity onPress={() => navigation.navigate('NewMessage')}>
           <Ionicons name="create-outline" size={22} color={textColor} />
         </TouchableOpacity>
       </View>
