@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList, StyleSheet,
-  KeyboardAvoidingView, Platform, ActivityIndicator,
+  Platform, ActivityIndicator, Keyboard, KeyboardEvent,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,6 +38,21 @@ export default function ChatScreen() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const flatListRef = useRef<FlatList>(null);
+
+  // Keyboard tracking
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = (e: KeyboardEvent) => setKeyboardHeight(e.endCoordinates.height);
+    const onHide = () => setKeyboardHeight(0);
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -108,7 +123,7 @@ export default function ChatScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={{ flex: 1 }}>
         {loading ? (
           <View style={styles.loadingContainer}><ActivityIndicator size="large" color={colors.primary[500]} /></View>
         ) : (
@@ -120,10 +135,14 @@ export default function ChatScreen() {
             onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
             contentContainerStyle={styles.msgList}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           />
         )}
 
-        <View style={[styles.inputBar, { borderTopColor: borderColor, backgroundColor: bg }]}>
+        <View style={[
+          styles.inputBar,
+          { borderTopColor: borderColor, backgroundColor: bg, marginBottom: keyboardHeight > 0 ? keyboardHeight : 0 },
+        ]}>
           <TextInput
             style={[styles.textInput, { color: textColor, backgroundColor: bubbleBg }]}
             placeholder="Type a message..."
@@ -137,7 +156,7 @@ export default function ChatScreen() {
             <Ionicons name="send" size={22} color={colors.primary[500]} />
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </SafeAreaView>
   );
 }
