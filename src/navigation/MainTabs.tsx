@@ -1,9 +1,10 @@
-import React from 'react';
-import { StyleSheet, View, Platform } from 'react-native';
+import React, { useState, useCallback, useEffect } from 'react';
+import { StyleSheet, View, Platform, Text } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { colors } from '../theme/colors';
 import useThemeStore from '../store/themeStore';
+import { messagesAPI } from '../services/api';
 
 // Tab screens / stacks
 import FeedStack from './FeedStack';
@@ -25,6 +26,22 @@ const Tab = createBottomTabNavigator<MainTabsParamList>();
 
 export default function MainTabs() {
   const dark = useThemeStore((s) => s.dark);
+  const [unreadMessages, setUnreadMessages] = useState(0);
+
+  // Fetch unread message count
+  useEffect(() => {
+    const fetchUnread = async () => {
+      try {
+        const res = await messagesAPI.getConversations();
+        const convos = res.data.conversations || res.data || [];
+        const total = convos.reduce((sum: number, c: any) => sum + (c.unread_count || 0), 0);
+        setUnreadMessages(total);
+      } catch {}
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   return (
     <Tab.Navigator
@@ -97,7 +114,11 @@ export default function MainTabs() {
       <Tab.Screen
         name="MessagesTab"
         component={MessagesStack}
-        options={{ tabBarLabel: 'Chat' }}
+        options={{
+          tabBarLabel: 'Chat',
+          tabBarBadge: unreadMessages > 0 ? (unreadMessages > 99 ? '99+' : unreadMessages) : undefined,
+          tabBarBadgeStyle: unreadMessages > 0 ? { backgroundColor: colors.error, fontSize: 10, fontWeight: '700', minWidth: 18, height: 18, borderRadius: 9 } : undefined,
+        }}
       />
       <Tab.Screen
         name="ProfileTab"
