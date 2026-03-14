@@ -8,7 +8,6 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
   Modal,
 } from 'react-native';
@@ -24,6 +23,7 @@ import { postsAPI } from '../../services/api';
 import { uploadFile, getMimeType } from '../../services/upload';
 import { colors } from '../../theme/colors';
 import Avatar from '../../components/Avatar';
+import useKeyboardHeight from '../../hooks/useKeyboardHeight';
 import type { CreatePostData } from '../../types';
 
 const MAX_CONTENT_LENGTH = 2000;
@@ -66,6 +66,8 @@ export default function CreatePostScreen() {
   const [eventTitle, setEventTitle] = useState('');
   const [eventDate, setEventDate] = useState('');
   const [eventLocation, setEventLocation] = useState('');
+
+  const keyboardHeight = useKeyboardHeight();
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -359,7 +361,7 @@ export default function CreatePostScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <View style={{ flex: 1 }}>
         <ScrollView style={styles.body} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           {/* Upload progress */}
           {publishing && uploadProgress ? (
@@ -488,8 +490,8 @@ export default function CreatePostScreen() {
           )}
         </ScrollView>
 
-        {/* Bottom toolbar - 5 options */}
-        <View style={[styles.toolbar, { borderTopColor: borderColor, backgroundColor: bg }]}>
+        {/* Bottom toolbar - 5 options - pushed above keyboard */}
+        <View style={[styles.toolbar, { borderTopColor: borderColor, backgroundColor: bg, marginBottom: keyboardHeight > 0 ? keyboardHeight : 0 }]}>
           <TouchableOpacity
             onPress={() => { setPostMode('post'); setShowImagePicker(true); }}
             style={[styles.toolBtn, postMode === 'post' && selectedMedia && mediaType === 'image' && styles.toolBtnActive]}
@@ -535,7 +537,7 @@ export default function CreatePostScreen() {
             <Text style={[styles.toolLabel, { color: mutedColor }]}>Event</Text>
           </TouchableOpacity>
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Image Picker Modal */}
       {renderPickerModal(showImagePicker, () => setShowImagePicker(false), 'Add Photo', [
