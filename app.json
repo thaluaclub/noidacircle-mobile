@@ -24,25 +24,37 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "permissions": [
-        "android.permission.INTERNET",
-        "android.permission.CAMERA",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.RECORD_AUDIO"
-      ]
+        "INTERNET",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "googleServicesFile": "./google-services.json"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-image-picker",
-      "expo-font"
-    ],
-    "extra": {
-      "eas": {
-        "projectId": "a486319f-13c4-4101-a54c-110a576a5c5d"
-      }
-    },
-    "owner": "thaluaclub"
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "NoidaCircle uses your location to show nearby people, businesses, and communities.",
+          "locationWhenInUsePermission": "NoidaCircle uses your location to discover nearby content."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#3b82f6",
+          "sounds": []
+        }
+      ]
+    ]
   }
 }
