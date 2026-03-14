@@ -6,6 +6,8 @@ import {
   StyleSheet,
   Dimensions,
   Share,
+  Modal,
+  Alert,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +44,8 @@ interface PostCardProps {
   onComment?: () => void;
   onUserPress?: (userId: string) => void;
   onReelPress?: (post: Post) => void;
+  onEdit?: (post: Post) => void;
+  onDelete?: (postId: string) => void;
   dark?: boolean;
   isVisible?: boolean;
 }
@@ -54,12 +58,15 @@ function PostCard({
   onComment,
   onUserPress,
   onReelPress,
+  onEdit,
+  onDelete,
   dark = false,
   isVisible = false,
 }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [imageAspect, setImageAspect] = useState(4 / 3);
   const [votedIndex, setVotedIndex] = useState<number | null>(null);
+  const [showMenu, setShowMenu] = useState(false);
   const isLong = post.content.length > MAX_CONTENT_LENGTH;
 
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -237,12 +244,50 @@ function PostCard({
           </View>
         </TouchableOpacity>
 
-        {!post.is_own && post.is_following === false && (
-          <TouchableOpacity style={styles.followBtn}>
-            <Text style={styles.followBtnText}>Follow</Text>
-          </TouchableOpacity>
-        )}
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          {!post.is_own && post.is_following === false && (
+            <TouchableOpacity style={styles.followBtn}>
+              <Text style={styles.followBtnText}>Follow</Text>
+            </TouchableOpacity>
+          )}
+          {post.is_own && (
+            <TouchableOpacity onPress={() => setShowMenu(true)} style={{ padding: 4 }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Ionicons name="ellipsis-horizontal" size={20} color={mutedColor} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
+
+      {/* Post Options Menu */}
+      {showMenu && (
+        <Modal visible={showMenu} transparent animationType="fade" onRequestClose={() => setShowMenu(false)}>
+          <TouchableOpacity style={styles.menuOverlay} activeOpacity={1} onPress={() => setShowMenu(false)}>
+            <View style={[styles.menuContent, { backgroundColor: dark ? colors.dark.card : '#fff' }]}>
+              <TouchableOpacity style={[styles.menuItem, { borderBottomColor: borderColor }]} onPress={() => { setShowMenu(false); onEdit?.(post); }}>
+                <Ionicons name="create-outline" size={20} color={colors.primary[500]} />
+                <Text style={[styles.menuItemText, { color: textColor }]}>Edit Post</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.menuItem, { borderBottomColor: borderColor }]} onPress={() => { setShowMenu(false); onBookmark?.(); }}>
+                <Ionicons name={post.is_bookmarked ? 'bookmark' : 'bookmark-outline'} size={20} color="#f59e0b" />
+                <Text style={[styles.menuItemText, { color: textColor }]}>{post.is_bookmarked ? 'Remove Bookmark' : 'Bookmark'}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.menuItem} onPress={() => {
+                setShowMenu(false);
+                Alert.alert('Delete Post', 'Are you sure you want to delete this post? This cannot be undone.', [
+                  { text: 'Cancel', style: 'cancel' },
+                  { text: 'Delete', style: 'destructive', onPress: () => onDelete?.(post.id) },
+                ]);
+              }}>
+                <Ionicons name="trash-outline" size={20} color={colors.error} />
+                <Text style={[styles.menuItemText, { color: colors.error }]}>Delete Post</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.menuCancel, { borderTopColor: borderColor }]} onPress={() => setShowMenu(false)}>
+                <Text style={[styles.menuCancelText, { color: mutedColor }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </Modal>
+      )}
 
       {/* Content */}
       <View style={styles.contentSection}>
@@ -547,6 +592,40 @@ const styles = StyleSheet.create({
   },
   actionCount: {
     fontSize: 13,
+    fontWeight: '500',
+  },
+  // Menu styles
+  menuOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  menuContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+    paddingTop: 12,
+  },
+  menuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderBottomWidth: 0.5,
+    gap: 14,
+  },
+  menuItemText: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  menuCancel: {
+    alignItems: 'center',
+    paddingVertical: 16,
+    borderTopWidth: 0.5,
+    marginTop: 4,
+  },
+  menuCancelText: {
+    fontSize: 16,
     fontWeight: '500',
   },
 });
