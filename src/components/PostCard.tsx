@@ -10,6 +10,7 @@ import {
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from './Avatar';
+import AutoPlayVideo from './AutoPlayVideo';
 import { colors } from '../theme/colors';
 import { timeAgo, formatCount } from '../utils/formatters';
 import type { Post } from '../types';
@@ -26,6 +27,7 @@ interface PostCardProps {
   onComment?: () => void;
   onUserPress?: (userId: string) => void;
   dark?: boolean;
+  isVisible?: boolean;
 }
 
 function PostCard({
@@ -36,6 +38,7 @@ function PostCard({
   onComment,
   onUserPress,
   dark = false,
+  isVisible = false,
 }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [imageAspect, setImageAspect] = useState(4 / 3);
@@ -141,18 +144,16 @@ function PostCard({
         />
       )}
 
-      {/* Media - Video thumbnail with play button */}
+      {/* Media - Video with autoplay */}
       {post.media_url && post.media_type === 'video' && (
-        <TouchableOpacity
-          activeOpacity={0.8}
-          onPress={onPress}
-          style={[styles.media, { height: 300 }, styles.videoPlaceholder]}
-        >
-          <View style={styles.playButton}>
-            <Ionicons name="play" size={32} color="#fff" />
-          </View>
-          <Text style={styles.videoLabel}>Tap to play video</Text>
-        </TouchableOpacity>
+        <View style={{ marginTop: 10 }}>
+          <AutoPlayVideo
+            uri={post.media_url}
+            isVisible={isVisible}
+            dark={dark}
+            height={300}
+          />
+        </View>
       )}
 
       {/* Action Bar */}

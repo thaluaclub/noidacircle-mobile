@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   Platform,
+  ViewToken,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -40,6 +41,17 @@ export default function FeedScreen() {
   } = usePostsStore();
   const navigation = useNavigation<FeedNav>();
 
+  const [visiblePostIds, setVisiblePostIds] = useState<Set<string>>(new Set());
+
+  const onViewableItemsChanged = useRef(({ viewableItems }: { viewableItems: ViewToken[] }) => {
+    const ids = new Set(viewableItems.map((v) => v.item?.id).filter(Boolean) as string[]);
+    setVisiblePostIds(ids);
+  }).current;
+
+  const viewabilityConfig = useRef({
+    itemVisiblePercentThreshold: 50,
+  }).current;
+
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
   const borderColor = dark ? colors.dark.border : colors.light.border;
@@ -67,6 +79,7 @@ export default function FeedScreen() {
       <PostCard
         post={item}
         dark={dark}
+        isVisible={visiblePostIds.has(item.id)}
         onPress={() => handlePostPress(item)}
         onLike={() => toggleLike(item.id)}
         onBookmark={() => toggleBookmark(item.id)}
@@ -74,7 +87,7 @@ export default function FeedScreen() {
         onUserPress={handleUserPress}
       />
     ),
-    [dark, toggleLike, toggleBookmark, handlePostPress, handleUserPress]
+    [dark, visiblePostIds, toggleLike, toggleBookmark, handlePostPress, handleUserPress]
   );
 
   const renderFooter = useCallback(() => {
@@ -139,6 +152,8 @@ export default function FeedScreen() {
             colors={[colors.primary[500]]}
           />
         }
+        onViewableItemsChanged={onViewableItemsChanged}
+        viewabilityConfig={viewabilityConfig}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
       />
