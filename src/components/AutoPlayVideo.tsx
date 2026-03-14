@@ -17,18 +17,16 @@ function AutoPlayVideo({ uri, isVisible, dark = false, height = 300 }: AutoPlayV
   const [muted, setMuted] = useState(true);
   const [showControls, setShowControls] = useState(false);
 
-  const player = useVideoPlayer(
-    uri,
-    (p) => {
-      p.loop = true;
-      p.muted = true;
-      p.play();
-    }
-  );
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = true;
+    p.muted = true;
+    p.play();
+  });
 
   // Auto play/pause based on visibility
   useEffect(() => {
-    if (!player) return;J    if (isVisible) {
+    if (!player) return;
+    if (isVisible) {
       player.play();
     } else {
       player.pause();
@@ -66,7 +64,7 @@ function AutoPlayVideo({ uri, isVisible, dark = false, height = 300 }: AutoPlayV
 
       {/* Mute button */}
       <TouchableOpacity style={styles.muteBtn} onPress={toggleMute} activeOpacity={0.7}>
-        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={32} color="#fff" />
+        <Ionicons name={muted ? 'volume-mute' : 'volume-high'} size={18} color="#fff" />
       </TouchableOpacity>
 
       {/* Play/Pause overlay */}
