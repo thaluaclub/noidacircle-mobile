@@ -416,6 +416,9 @@ export default function FeedScreen() {
       <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <Text style={[styles.logo, { color: textColor }]}>NoidaCircle</Text>
         <View style={styles.headerIcons}>
+          <TouchableOpacity onPress={() => navigation.navigate('Nearby')} style={styles.headerIconBtn}>
+            <Ionicons name="location-outline" size={23} color={textColor} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={() => navigation.navigate('Explore' as any)} style={styles.headerIconBtn}>
             <Ionicons name="search-outline" size={24} color={textColor} />
           </TouchableOpacity>
