@@ -20,10 +20,11 @@ import { useNavigation } from '@react-navigation/native';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
 import usePostsStore from '../../store/postsStore';
-import { postsAPI } from '../../services/api';
-import { uploadFile, getMimeType } from '../../services/upload';
+import { postsAPI, uploadAPI } from '../../services/api';
+import { getMimeType } from '../../services/upload';
 import { colors } from '../../theme/colors';
 import Avatar from '../../components/Avatar';
+import * as FileSystem from 'expo-file-system';
 import type { CreatePostData } from '../../types';
 
 const MAX_CONTENT_LENGTH = 2000;
@@ -83,64 +84,80 @@ export default function CreatePostScreen() {
   // ---- Image Handlers ----
   const pickImageFromGallery = useCallback(async () => {
     setShowImagePicker(false);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setSelectedMedia(result.assets[0].uri);
-      setMediaType('image');
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        setMediaType('image');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'Could not open gallery: ' + (err.message || 'Unknown error'));
     }
   }, []);
 
   const takePhotoFromCamera = useCallback(async () => {
     setShowImagePicker(false);
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setSelectedMedia(result.assets[0].uri);
-      setMediaType('image');
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera access is required.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        allowsEditing: true,
+        quality: 0.7,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        setMediaType('image');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'Could not open camera: ' + (err.message || 'Unknown error'));
     }
   }, []);
 
   // ---- Reel/Video Handlers ----
   const pickVideoFromGallery = useCallback(async () => {
     setShowReelPicker(false);
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['videos'],
-      allowsEditing: true,
-      quality: 0.7,
-      videoMaxDuration: 120,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setSelectedMedia(result.assets[0].uri);
-      setMediaType('video');
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['videos'],
+        allowsEditing: true,
+        quality: 0.7,
+        videoMaxDuration: 120,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        setMediaType('video');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'Could not pick video: ' + (err.message || 'Unknown error'));
     }
   }, []);
 
   const recordVideoFromCamera = useCallback(async () => {
     setShowReelPicker(false);
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Camera access is required.');
-      return;
-    }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['videos'],
-      quality: 0.7,
-      videoMaxDuration: 60,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setSelectedMedia(result.assets[0].uri);
-      setMediaType('video');
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission needed', 'Camera access is required.');
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ['videos'],
+        quality: 0.7,
+        videoMaxDuration: 60,
+      });
+      if (!result.canceled && result.assets[0]) {
+        setSelectedMedia(result.assets[0].uri);
+        setMediaType('video');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', 'Could not record video: ' + (err.message || 'Unknown error'));
     }
   }, []);
 
@@ -164,26 +181,120 @@ export default function CreatePostScreen() {
     setPollOptions(prev => prev.map(o => o.id === id ? { ...o, text } : o));
   }, []);
 
+  // ---- Upload file using presigned URL (more reliable for large files) ----
+  const uploadMediaFile = async (uri: string, mimeType: string): Promise<string> => {
+    const ext = uri.split('.').pop()?.split('?')[0] || 'jpg';
+    const fileName = `upload_${Date.now()}.${ext}`;
+
+    try {
+      // Step 1: Get presigned URL from backend
+      setUploadProgress('Preparing upload...');
+      const presignedRes = await uploadAPI.presigned({
+        fileName,
+        fileType: mimeType,
+        folder: 'posts',
+      });
+
+      const { presignedUrl, fileUrl } = presignedRes.data;
+
+      if (!presignedUrl || !fileUrl) {
+        throw new Error('Failed to get upload URL from server');
+      }
+
+      // Step 2: Upload file directly to S3 using presigned URL
+      setUploadProgress('Uploading media...');
+      const uploadResult = await FileSystem.uploadAsync(presignedUrl, uri, {
+        httpMethod: 'PUT',
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+        headers: {
+          'Content-Type': mimeType,
+        },
+      });
+
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        // Presigned upload failed, fall back to base64
+        console.log('Presigned upload failed, trying base64...');
+        return await uploadViaBase64(uri, fileName, mimeType);
+      }
+
+      return fileUrl;
+    } catch (presignedError: any) {
+      // Fall back to base64 upload
+      console.log('Presigned upload error, trying base64:', presignedError.message);
+      return await uploadViaBase64(uri, fileName, mimeType);
+    }
+  };
+
+  // Fallback: upload via base64 encoding
+  const uploadViaBase64 = async (uri: string, fileName: string, mimeType: string): Promise<string> => {
+    setUploadProgress('Uploading (base64)...');
+    const base64Data = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const res = await uploadAPI.base64({
+      data: base64Data,
+      fileName,
+      fileType: mimeType,
+      folder: 'posts',
+    });
+
+    if (!res.data?.fileUrl) {
+      throw new Error('Upload succeeded but no file URL returned');
+    }
+
+    return res.data.fileUrl;
+  };
+
   // ---- Publish ----
   const handlePublish = useCallback(async () => {
     if (!canPublish) return;
+    if (publishing) return;
 
     setPublishing(true);
+    setUploadProgress('');
+
     try {
       let mediaUrl: string | undefined;
       let uploadMediaType: 'image' | 'video' | undefined;
 
+      // Step 1: Upload media if selected
       if (selectedMedia && mediaType) {
-        setUploadProgress(mediaType === 'video' ? 'Uploading video...' : 'Uploading image...');
-        const mimeType = getMimeType(selectedMedia);
-        mediaUrl = await uploadFile(selectedMedia, 'posts', mimeType);
-        uploadMediaType = mediaType;
+        try {
+          const mimeType = getMimeType(selectedMedia);
+          mediaUrl = await uploadMediaFile(selectedMedia, mimeType);
+          uploadMediaType = mediaType;
+        } catch (uploadErr: any) {
+          const uploadMsg = uploadErr.response?.data?.error
+            || uploadErr.message
+            || 'Media upload failed';
+          Alert.alert('Upload Error', uploadMsg + '\n\nWould you like to post without media?', [
+            { text: 'Cancel', style: 'cancel', onPress: () => { setPublishing(false); setUploadProgress(''); } },
+            { text: 'Post without media', onPress: () => createPost(undefined, undefined) },
+          ]);
+          return;
+        }
       }
 
+      // Step 2: Create the post
+      await createPost(mediaUrl, uploadMediaType);
+
+    } catch (err: any) {
+      setPublishing(false);
+      setUploadProgress('');
+      const msg = err.response?.data?.error
+        || err.message
+        || 'Something went wrong. Please try again.';
+      Alert.alert('Error', msg);
+    }
+  }, [canPublish, publishing, content, selectedMedia, mediaType, postMode, pollOptions, pollDuration, eventTitle, eventDate, eventLocation, user, addPost, navigation]);
+
+  const createPost = async (mediaUrl?: string, uploadMediaType?: 'image' | 'video') => {
+    try {
       setUploadProgress('Publishing...');
 
-      // If no text but has media, provide a minimal content (backend requires content)
-      const finalContent = content.trim() || (mediaUrl ? '' : '') || ' ';
+      // Build content - use text if available, otherwise empty string
+      const finalContent = content.trim() || ' ';
 
       const postData: CreatePostData = {
         content: finalContent,
@@ -193,18 +304,16 @@ export default function CreatePostScreen() {
       if (mediaUrl) {
         postData.media_url = mediaUrl;
         postData.media_type = uploadMediaType;
-        // Set category to 'reel' for video posts so they appear in Reels tab
         if (uploadMediaType === 'video' && !postData.category) {
           postData.category = 'reel';
         }
       }
 
-      // Add poll/event metadata to content if applicable
+      // Add poll/event metadata
       if (postMode === 'poll') {
         const validOptions = pollOptions.filter(o => o.text.trim());
         if (validOptions.length >= 2) {
           postData.category = 'poll';
-          // Append poll options as structured content
           postData.description = JSON.stringify({
             type: 'poll',
             options: validOptions.map(o => o.text.trim()),
@@ -228,7 +337,12 @@ export default function CreatePostScreen() {
       }
 
       const res = await postsAPI.create(postData);
-      const newPost = res.data?.post || res.data;
+      // Backend returns flat post object (status 201), not { post: ... }
+      const newPost = res.data;
+
+      if (!newPost || !newPost.id) {
+        throw new Error('Post created but invalid response from server');
+      }
 
       addPost({
         ...newPost,
@@ -245,7 +359,7 @@ export default function CreatePostScreen() {
         is_bookmarked: false,
       });
 
-      // Reset
+      // Reset all state
       setContent('');
       setSelectedMedia(null);
       setMediaType(null);
@@ -255,19 +369,21 @@ export default function CreatePostScreen() {
       setEventTitle('');
       setEventDate('');
       setEventLocation('');
+      setPublishing(false);
 
       const label = postMode === 'story' ? 'Story' : postMode === 'event' ? 'Event' : 'Post';
       Alert.alert(`${label} Published!`, `Your ${label.toLowerCase()} is now live.`, [
         { text: 'OK', onPress: () => { if (navigation.canGoBack()) navigation.goBack(); } },
       ]);
     } catch (err: any) {
-      const msg = err.response?.data?.error || 'Failed to publish. Please try again.';
-      Alert.alert('Error', msg);
-    } finally {
       setPublishing(false);
       setUploadProgress('');
+      const msg = err.response?.data?.error
+        || err.message
+        || 'Failed to publish. Please try again.';
+      Alert.alert('Publish Error', msg);
     }
-  }, [canPublish, content, selectedMedia, mediaType, postMode, pollOptions, pollDuration, eventTitle, eventDate, eventLocation, user, addPost, navigation]);
+  };
 
   // ---- Bottom Sheet Modal ----
   const renderPickerModal = (visible: boolean, onClose: () => void, title: string, options: { icon: string; label: string; onPress: () => void }[]) => (
