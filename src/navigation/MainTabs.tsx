@@ -8,13 +8,14 @@ import useThemeStore from '../store/themeStore';
 // Tab screens / stacks
 import FeedStack from './FeedStack';
 import ExploreStack from './ExploreStack';
+import ReelsStack from './ReelsStack';
 import CreatePostScreen from '../screens/create/CreatePostScreen';
 import MessagesStack from './MessagesStack';
 import ProfileStack from './ProfileStack';
 
 export type MainTabsParamList = {
   FeedTab: undefined;
-  ExploreTab: undefined;
+  ReelsTab: undefined;
   CreateTab: undefined;
   MessagesTab: undefined;
   ProfileTab: undefined;
@@ -35,8 +36,8 @@ export default function MainTabs() {
             case 'FeedTab':
               iconName = focused ? 'home' : 'home-outline';
               break;
-            case 'ExploreTab':
-              iconName = focused ? 'search' : 'search-outline';
+            case 'ReelsTab':
+              iconName = focused ? 'play-circle' : 'play-circle-outline';
               break;
             case 'CreateTab':
               iconName = focused ? 'add-circle' : 'add-circle-outline';
@@ -84,9 +85,9 @@ export default function MainTabs() {
         options={{ tabBarLabel: 'Home' }}
       />
       <Tab.Screen
-        name="ExploreTab"
-        component={ExploreStack}
-        options={{ tabBarLabel: 'Explore' }}
+        name="ReelsTab"
+        component={ReelsStack}
+        options={{ tabBarLabel: 'Reels' }}
       />
       <Tab.Screen
         name="CreateTab"
