@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,9 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  KeyboardAvoidingView,
   Platform,
+  Keyboard,
+  KeyboardEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -39,6 +40,21 @@ export default function EditPostScreen() {
   const [content, setContent] = useState(post.content);
   const [title, setTitle] = useState(post.title || '');
   const [saving, setSaving] = useState(false);
+
+  // Keyboard tracking
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const onShow = (e: KeyboardEvent) => setKeyboardHeight(e.endCoordinates.height);
+    const onHide = () => setKeyboardHeight(0);
+
+    const showSub = Keyboard.addListener(showEvent, onShow);
+    const hideSub = Keyboard.addListener(hideEvent, onHide);
+    return () => { showSub.remove(); hideSub.remove(); };
+  }, []);
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -101,91 +117,87 @@ export default function EditPostScreen() {
         </TouchableOpacity>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <ScrollView
+        style={styles.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40 }}
       >
-        <ScrollView
-          style={styles.body}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          {/* Title (optional) */}
-          {(post.title || post.category === 'events' || post.category === 'event') && (
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: mutedColor }]}>Title</Text>
-              <TextInput
-                style={[styles.titleInput, { color: textColor, borderColor }]}
-                value={title}
-                onChangeText={setTitle}
-                placeholder="Post title"
-                placeholderTextColor={mutedColor}
-                maxLength={200}
-                editable={!saving}
-              />
-            </View>
-          )}
-
-          {/* Content */}
+        {/* Title (optional) */}
+        {(post.title || post.category === 'events' || post.category === 'event') && (
           <View style={styles.field}>
-            <Text style={[styles.label, { color: mutedColor }]}>Content</Text>
+            <Text style={[styles.label, { color: mutedColor }]}>Title</Text>
             <TextInput
-              style={[styles.contentInput, { color: textColor, borderColor }]}
-              value={content}
-              onChangeText={setContent}
-              placeholder="What's on your mind?"
+              style={[styles.titleInput, { color: textColor, borderColor }]}
+              value={title}
+              onChangeText={setTitle}
+              placeholder="Post title"
               placeholderTextColor={mutedColor}
-              multiline
-              maxLength={MAX_CONTENT_LENGTH}
+              maxLength={200}
               editable={!saving}
             />
-            <Text
-              style={[
-                styles.charCount,
-                {
-                  color:
-                    content.length > MAX_CONTENT_LENGTH * 0.9
-                      ? colors.error
-                      : mutedColor,
-                },
-              ]}
-            >
-              {content.length}/{MAX_CONTENT_LENGTH}
+          </View>
+        )}
+
+        {/* Content */}
+        <View style={styles.field}>
+          <Text style={[styles.label, { color: mutedColor }]}>Content</Text>
+          <TextInput
+            style={[styles.contentInput, { color: textColor, borderColor }]}
+            value={content}
+            onChangeText={setContent}
+            placeholder="What's on your mind?"
+            placeholderTextColor={mutedColor}
+            multiline
+            maxLength={MAX_CONTENT_LENGTH}
+            editable={!saving}
+          />
+          <Text
+            style={[
+              styles.charCount,
+              {
+                color:
+                  content.length > MAX_CONTENT_LENGTH * 0.9
+                    ? colors.error
+                    : mutedColor,
+              },
+            ]}
+          >
+            {content.length}/{MAX_CONTENT_LENGTH}
+          </Text>
+        </View>
+
+        {/* Media preview (read-only) */}
+        {post.media_url && post.media_type === 'image' && (
+          <View style={styles.mediaSection}>
+            <Text style={[styles.label, { color: mutedColor }]}>Media</Text>
+            <Image
+              source={{ uri: post.media_url }}
+              style={styles.mediaPreview}
+              contentFit="cover"
+              transition={200}
+            />
+            <Text style={[styles.mediaNote, { color: mutedColor }]}>
+              Media cannot be changed when editing
             </Text>
           </View>
+        )}
 
-          {/* Media preview (read-only) */}
-          {post.media_url && post.media_type === 'image' && (
-            <View style={styles.mediaSection}>
-              <Text style={[styles.label, { color: mutedColor }]}>Media</Text>
-              <Image
-                source={{ uri: post.media_url }}
-                style={styles.mediaPreview}
-                contentFit="cover"
-                transition={200}
-              />
-              <Text style={[styles.mediaNote, { color: mutedColor }]}>
-                Media cannot be changed when editing
+        {post.media_url && post.media_type === 'video' && (
+          <View style={styles.mediaSection}>
+            <Text style={[styles.label, { color: mutedColor }]}>Media</Text>
+            <View style={[styles.mediaPreview, styles.videoPlaceholder]}>
+              <Ionicons name="videocam" size={32} color="#fff" />
+              <Text style={{ color: '#fff', fontSize: 13, marginTop: 4 }}>
+                Video attached
               </Text>
             </View>
-          )}
-
-          {post.media_url && post.media_type === 'video' && (
-            <View style={styles.mediaSection}>
-              <Text style={[styles.label, { color: mutedColor }]}>Media</Text>
-              <View style={[styles.mediaPreview, styles.videoPlaceholder]}>
-                <Ionicons name="videocam" size={32} color="#fff" />
-                <Text style={{ color: '#fff', fontSize: 13, marginTop: 4 }}>
-                  Video attached
-                </Text>
-              </View>
-              <Text style={[styles.mediaNote, { color: mutedColor }]}>
-                Media cannot be changed when editing
-              </Text>
-            </View>
-          )}
-        </ScrollView>
-      </KeyboardAvoidingView>
+            <Text style={[styles.mediaNote, { color: mutedColor }]}>
+              Media cannot be changed when editing
+            </Text>
+          </View>
+        )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
