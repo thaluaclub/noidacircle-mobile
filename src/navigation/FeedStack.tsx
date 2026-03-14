@@ -8,6 +8,7 @@ import NotificationsScreen from '../screens/notifications/NotificationsScreen';
 import UserProfileScreen from '../screens/profile/UserProfileScreen';
 import CommunitiesScreen from '../screens/communities/CommunitiesScreen';
 import ExploreScreen from '../screens/explore/ExploreScreen';
+import NearbyScreen from '../screens/explore/NearbyScreen';
 import type { Post } from '../types';
 
 export type FeedStackParamList = {
@@ -19,6 +20,7 @@ export type FeedStackParamList = {
   UserProfile: { userId: string };
   Communities: undefined;
   Explore: undefined;
+  Nearby: undefined;
 };
 
 const Stack = createNativeStackNavigator<FeedStackParamList>();
@@ -34,6 +36,7 @@ export default function FeedStack() {
       <Stack.Screen name="UserProfile" component={UserProfileScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="Communities" component={CommunitiesScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="Explore" component={ExploreScreen} options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="Nearby" component={NearbyScreen} options={{ animation: 'slide_from_right' }} />
     </Stack.Navigator>
   );
 }
