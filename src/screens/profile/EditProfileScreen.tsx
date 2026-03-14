@@ -1,7 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator,
-  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +12,7 @@ import Avatar from '../../components/Avatar';
 import Button from '../../components/Button';
 import { usersAPI } from '../../services/api';
 import { uploadFile, getMimeType } from '../../services/upload';
+import useKeyboardHeight from '../../hooks/useKeyboardHeight';
 import { colors } from '../../theme/colors';
 
 export default function EditProfileScreen() {
@@ -26,6 +26,7 @@ export default function EditProfileScreen() {
   const [accountType, setAccountType] = useState(user?.account_type || 'individual');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const keyboardHeight = useKeyboardHeight();
 
   const ACCOUNT_TYPES = [
     { key: 'individual', label: 'Individual', icon: 'person-outline', desc: 'Personal account' },
@@ -99,16 +100,12 @@ export default function EditProfileScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      <ScrollView
+        style={styles.body}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: keyboardHeight > 0 ? keyboardHeight + 20 : 40 }}
       >
-        <ScrollView
-          style={styles.body}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 40 }}
-        >
           <View style={styles.avatarSection}>
             <TouchableOpacity onPress={pickAvatar}>
               <Avatar
@@ -198,8 +195,7 @@ export default function EditProfileScreen() {
             loading={saving}
             style={{ marginTop: 24, marginHorizontal: 16 }}
           />
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </ScrollView>
     </SafeAreaView>
   );
 }
