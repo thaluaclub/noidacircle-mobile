@@ -58,8 +58,11 @@ export const usersAPI = {
 
 // Posts API
 export const postsAPI = {
-  getFeed: (page = 1, limit = 20) =>
-    api.get(`/posts/feed?page=${page}&limit=${limit}`),
+  getFeed: (page = 1, limit = 20, feedType?: string) => {
+    let url = `/posts/feed?page=${page}&limit=${limit}`;
+    if (feedType && feedType !== 'all') url += `&type=${feedType}`;
+    return api.get(url);
+  },
   getAll: (page = 1, limit = 20) =>
     api.get(`/posts/explore?page=${page}&limit=${limit}`),
   getReels: (page = 1, limit = 20) =>
@@ -128,6 +131,13 @@ export const notificationsAPI = {
   unreadCount: () => api.get('/notifications/unread-count'),
   markRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
+};
+
+// Recommendations API
+export const recommendationsAPI = {
+  suggestedUsers: (limit = 5) => api.get(`/users/suggestions?limit=${limit}`),
+  suggestedCommunities: (limit = 5) => api.get(`/communities/suggestions?limit=${limit}`),
+  suggestedBrands: (limit = 5) => api.get(`/users/suggestions?limit=${limit}&type=business`),
 };
 
 // Upload API
