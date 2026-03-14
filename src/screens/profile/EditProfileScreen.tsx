@@ -19,7 +19,7 @@ export default function EditProfileScreen() {
   const { user, setUser } = useAuthStore();
   const dark = useThemeStore((s) => s.dark);
 
-  const [displayName, setDisplayName] = useState(user?.display_name || '');
+  const [displayName, setDisplayName] = useState(user?.display_name || user?.full_name || '');
   const [bio, setBio] = useState(user?.bio || '');
   const [location, setLocation] = useState(user?.location || '');
   const [accountType, setAccountType] = useState(user?.account_type || 'individual');
@@ -54,20 +54,21 @@ export default function EditProfileScreen() {
   const handleSave = useCallback(async () => {
     setSaving(true);
     try {
-      let avatar_url = user?.avatar_url;
+      let profileImageUrl = user?.profile_image_url || user?.avatar_url;
 
       if (avatarUri) {
         const mime = getMimeType(avatarUri);
-        avatar_url = await uploadFile(avatarUri, 'avatars', mime);
+        profileImageUrl = await uploadFile(avatarUri, 'avatars', mime);
       }
 
       const data: any = {
+        full_name: displayName.trim(),
         display_name: displayName.trim(),
         bio: bio.trim(),
         location: location.trim(),
         account_type: accountType,
       };
-      if (avatar_url) data.avatar_url = avatar_url;
+      if (profileImageUrl) data.profile_image_url = profileImageUrl;
 
       await usersAPI.updateProfile(data);
 
@@ -76,7 +77,7 @@ export default function EditProfileScreen() {
         await usersAPI.updateAccountType({ account_type: accountType });
       } catch {}
 
-      setUser({ ...user!, ...data, account_type: accountType, avatar_url: avatar_url || user?.avatar_url });
+      setUser({ ...user!, ...data, account_type: accountType, profile_image_url: profileImageUrl || user?.profile_image_url, avatar_url: profileImageUrl || user?.avatar_url });
 
       Alert.alert('Saved', 'Profile updated successfully');
       navigation.goBack();
@@ -101,8 +102,8 @@ export default function EditProfileScreen() {
         <View style={styles.avatarSection}>
           <TouchableOpacity onPress={pickAvatar}>
             <Avatar
-              uri={avatarUri || user?.avatar_url}
-              name={user?.display_name || user?.username || ''}
+              uri={avatarUri || user?.profile_image_url || user?.avatar_url}
+              name={user?.display_name || user?.full_name || user?.username || ''}
               size={90}
             />
             <View style={styles.cameraIcon}>
