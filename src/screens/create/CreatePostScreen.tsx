@@ -73,7 +73,12 @@ export default function CreatePostScreen() {
   const borderColor = dark ? colors.dark.border : colors.light.border;
   const cardBg = dark ? colors.dark.card : '#f5f5f5';
 
-  const canPublish = content.trim().length > 0 && !publishing;
+  // Allow publishing with just text, just media, or both
+  const hasContent = content.trim().length > 0;
+  const hasMedia = !!selectedMedia;
+  const hasPollData = postMode === 'poll' && pollOptions.filter(o => o.text.trim()).length >= 2;
+  const hasEventData = postMode === 'event' && eventTitle.trim().length > 0;
+  const canPublish = (hasContent || hasMedia || hasPollData || hasEventData) && !publishing;
 
   // ---- Image Handlers ----
   const pickImageFromGallery = useCallback(async () => {
@@ -177,8 +182,11 @@ export default function CreatePostScreen() {
 
       setUploadProgress('Publishing...');
 
+      // If no text but has media, provide a minimal content (backend requires content)
+      const finalContent = content.trim() || (mediaUrl ? '' : '') || ' ';
+
       const postData: CreatePostData = {
-        content: content.trim(),
+        content: finalContent,
         visibility: postMode === 'story' ? 'followers' : 'public',
       };
 
