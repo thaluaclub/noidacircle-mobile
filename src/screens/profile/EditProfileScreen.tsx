@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator,
+  KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -89,7 +90,7 @@ export default function EditProfileScreen() {
   }, [displayName, bio, location, avatarUri, user, setUser, navigation]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: bg }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
       <View style={[styles.header, { borderBottomColor: borderColor }]}>
         <TouchableOpacity onPress={() => navigation.goBack()}>
           <Ionicons name="arrow-back" size={24} color={textColor} />
@@ -98,97 +99,107 @@ export default function EditProfileScreen() {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.body} keyboardShouldPersistTaps="handled">
-        <View style={styles.avatarSection}>
-          <TouchableOpacity onPress={pickAvatar}>
-            <Avatar
-              uri={avatarUri || user?.profile_image_url || user?.avatar_url}
-              name={user?.display_name || user?.full_name || user?.username || ''}
-              size={90}
-            />
-            <View style={styles.cameraIcon}>
-              <Ionicons name="camera" size={16} color="#fff" />
-            </View>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={pickAvatar}>
-            <Text style={{ color: colors.primary[500], fontSize: 14, fontWeight: '500', marginTop: 8 }}>Change Photo</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: mutedColor }]}>Display Name</Text>
-          <TextInput
-            style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="Your name"
-            placeholderTextColor={mutedColor}
-            maxLength={50}
-          />
-        </View>
-
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: mutedColor }]}>Bio</Text>
-          <TextInput
-            style={[styles.input, styles.bioInput, { color: textColor, backgroundColor: inputBg, borderColor }]}
-            value={bio}
-            onChangeText={setBio}
-            placeholder="Tell people about yourself"
-            placeholderTextColor={mutedColor}
-            multiline
-            maxLength={160}
-          />
-          <Text style={[styles.charCount, { color: mutedColor }]}>{bio.length}/160</Text>
-        </View>
-
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: mutedColor }]}>Location</Text>
-          <TextInput
-            style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
-            value={location}
-            onChangeText={setLocation}
-            placeholder="Noida, UP"
-            placeholderTextColor={mutedColor}
-            maxLength={50}
-          />
-        </View>
-
-        {/* Account Type */}
-        <View style={styles.field}>
-          <Text style={[styles.label, { color: mutedColor }]}>Account Type</Text>
-          <View style={styles.accountTypeGrid}>
-            {ACCOUNT_TYPES.map((type) => {
-              const isSelected = accountType === type.key;
-              return (
-                <TouchableOpacity
-                  key={type.key}
-                  style={[
-                    styles.accountTypeCard,
-                    { borderColor: isSelected ? colors.primary[500] : borderColor, backgroundColor: isSelected ? (dark ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)') : inputBg },
-                  ]}
-                  onPress={() => setAccountType(type.key)}
-                  activeOpacity={0.7}
-                >
-                  <Ionicons name={type.icon as any} size={22} color={isSelected ? colors.primary[500] : mutedColor} />
-                  <Text style={[styles.accountTypeLabel, { color: isSelected ? colors.primary[500] : textColor }]}>{type.label}</Text>
-                  <Text style={[styles.accountTypeDesc, { color: mutedColor }]}>{type.desc}</Text>
-                  {isSelected && (
-                    <Ionicons name="checkmark-circle" size={16} color={colors.primary[500]} style={{ position: 'absolute', top: 8, right: 8 }} />
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          style={styles.body}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 40 }}
+        >
+          <View style={styles.avatarSection}>
+            <TouchableOpacity onPress={pickAvatar}>
+              <Avatar
+                uri={avatarUri || user?.profile_image_url || user?.avatar_url}
+                name={user?.display_name || user?.full_name || user?.username || ''}
+                size={90}
+              />
+              <View style={styles.cameraIcon}>
+                <Ionicons name="camera" size={16} color="#fff" />
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={pickAvatar}>
+              <Text style={{ color: colors.primary[500], fontSize: 14, fontWeight: '500', marginTop: 8 }}>Change Photo</Text>
+            </TouchableOpacity>
           </View>
-        </View>
 
-        <Button
-          title={saving ? 'Saving...' : 'Save Changes'}
-          onPress={handleSave}
-          disabled={saving}
-          loading={saving}
-          style={{ marginTop: 24, marginHorizontal: 16 }}
-        />
-      </ScrollView>
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Display Name</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Your name"
+              placeholderTextColor={mutedColor}
+              maxLength={50}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Bio</Text>
+            <TextInput
+              style={[styles.input, styles.bioInput, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={bio}
+              onChangeText={setBio}
+              placeholder="Tell people about yourself"
+              placeholderTextColor={mutedColor}
+              multiline
+              maxLength={160}
+            />
+            <Text style={[styles.charCount, { color: mutedColor }]}>{bio.length}/160</Text>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Location</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={location}
+              onChangeText={setLocation}
+              placeholder="Noida, UP"
+              placeholderTextColor={mutedColor}
+              maxLength={50}
+            />
+          </View>
+
+          {/* Account Type */}
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Account Type</Text>
+            <View style={styles.accountTypeGrid}>
+              {ACCOUNT_TYPES.map((type) => {
+                const isSelected = accountType === type.key;
+                return (
+                  <TouchableOpacity
+                    key={type.key}
+                    style={[
+                      styles.accountTypeCard,
+                      { borderColor: isSelected ? colors.primary[500] : borderColor, backgroundColor: isSelected ? (dark ? 'rgba(59,130,246,0.1)' : 'rgba(59,130,246,0.05)') : inputBg },
+                    ]}
+                    onPress={() => setAccountType(type.key)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons name={type.icon as any} size={22} color={isSelected ? colors.primary[500] : mutedColor} />
+                    <Text style={[styles.accountTypeLabel, { color: isSelected ? colors.primary[500] : textColor }]}>{type.label}</Text>
+                    <Text style={[styles.accountTypeDesc, { color: mutedColor }]}>{type.desc}</Text>
+                    {isSelected && (
+                      <Ionicons name="checkmark-circle" size={16} color={colors.primary[500]} style={{ position: 'absolute', top: 8, right: 8 }} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </View>
+
+          <Button
+            title={saving ? 'Saving...' : 'Save Changes'}
+            onPress={handleSave}
+            disabled={saving}
+            loading={saving}
+            style={{ marginTop: 24, marginHorizontal: 16 }}
+          />
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
