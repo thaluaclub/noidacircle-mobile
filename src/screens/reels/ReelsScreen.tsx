@@ -289,7 +289,7 @@ export default function ReelsScreen() {
   // Share handler — rich share with media URL + caption + branding
   const handleSharePress = useCallback(async (post: Post) => {
     try {
-      const shareUrl = `https://noidacircle.com/post/${post.id}`;
+      const shareUrl = `https://noidacircle.com/share/post/${post.id}`;
       const caption = post.content
         ? `${post.content.slice(0, 200)}${post.content.length > 200 ? '...' : ''}`
         : 'Check out this reel on NoidaCircle!';
