@@ -1,12 +1,19 @@
 import * as FileSystem from 'expo-file-system';
-import { uploadAPI } from './api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const API_BASE = 'https://noidacircle-api-backend.vercel.app';
 
 /**
- * Upload a file from a local URI to S3 via base64 encoding
- * @param uri - Local file URI (from expo-image-picker)
- * @param folder - S3 folder (e.g., 'posts', 'profiles')
- * @param fileType - MIME type (e.g., 'image/jpeg')
- * @returns The public S3 URL of the uploaded file
+ * Get auth token from storage
+ */
+async function getToken(): Promise<string | null> {
+  return await AsyncStorage.getItem('nc_token');
+}
+
+/**
+ * Upload a file from a local URI to S3
+ * Uses presigned URL first (direct S3 upload), falls back to base64
+ * Does NOT depend on uploadAPI import to avoid undefined reference issues
  */
 export async function uploadFile(
   uri: string,
@@ -17,46 +24,82 @@ export async function uploadFile(
   const ext = uriParts[uriParts.length - 1]?.split('?')[0] || 'jpg';
   const fileName = `upload_${Date.now()}.${ext}`;
 
-  // Try presigned URL upload first (more reliable for large files)
-  try {
-    const presignedRes = await uploadAPI.presigned({
-      fileName,
-      fileType,
-      folder,
-    });
-
-    const { presignedUrl, fileUrl } = presignedRes.data;
-
-    if (presignedUrl && fileUrl) {
-      const uploadResult = await FileSystem.uploadAsync(presignedUrl, uri, {
-        httpMethod: 'PUT',
-        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
-        headers: {
-          'Content-Type': fileType,
-        },
-      });
-
-      if (uploadResult.status >= 200 && uploadResult.status < 300) {
-        return fileUrl;
-      }
-    }
-  } catch (e) {
-    console.log('Presigned upload failed, falling back to base64:', e);
+  const token = await getToken();
+  if (!token) {
+    throw new Error('Not authenticated. Please log in again.');
   }
 
-  // Fallback: base64 upload
-  const base64Data = await FileSystem.readAsStringAsync(uri, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  // Method 1: Presigned URL upload (direct to S3, bypasses Vercel body limits)
+  try {
+    const presignedRes = await fetch(`${API_BASE}/api/upload/presigned`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({ fileName, fileType, folder }),
+    });
 
-  const { data } = await uploadAPI.base64({
-    data: base64Data,
-    fileName,
-    fileType,
-    folder,
-  });
+    if (presignedRes.ok) {
+      const presignedData = await presignedRes.json();
+      const { presignedUrl, fileUrl } = presignedData;
 
-  return data.fileUrl;
+      if (presignedUrl && fileUrl) {
+        // Upload directly to S3 using expo-file-system
+        const uploadResult = await FileSystem.uploadAsync(presignedUrl, uri, {
+          httpMethod: 'PUT',
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+          headers: {
+            'Content-Type': fileType,
+          },
+        });
+
+        if (uploadResult.status >= 200 && uploadResult.status < 300) {
+          return fileUrl;
+        }
+        console.log('S3 direct upload failed with status:', uploadResult.status);
+      }
+    } else {
+      console.log('Presigned URL request failed:', presignedRes.status);
+    }
+  } catch (presignedError: any) {
+    console.log('Presigned upload error:', presignedError.message);
+  }
+
+  // Method 2: Base64 upload (through backend)
+  try {
+    const base64Data = await FileSystem.readAsStringAsync(uri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+
+    const base64Res = await fetch(`${API_BASE}/api/upload/base64`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        data: base64Data,
+        fileName,
+        fileType,
+        folder,
+      }),
+    });
+
+    if (!base64Res.ok) {
+      const errData = await base64Res.json().catch(() => ({}));
+      throw new Error(errData.error || `Upload failed with status ${base64Res.status}`);
+    }
+
+    const result = await base64Res.json();
+    if (!result.fileUrl) {
+      throw new Error('Upload succeeded but no file URL returned');
+    }
+    return result.fileUrl;
+  } catch (base64Error: any) {
+    console.log('Base64 upload error:', base64Error.message);
+    throw base64Error;
+  }
 }
 
 /**
