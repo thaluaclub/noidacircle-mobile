@@ -1,4 +1,5 @@
-import * as FileSystem from 'expo-file-system';
+// Use legacy import - expo-file-system main export is deprecated in SDK 55
+import * as FileSystem from 'expo-file-system/legacy';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_BASE = 'https://noidacircle-api-backend.vercel.app';
@@ -46,11 +47,9 @@ export async function uploadFile(
 
       if (presignedUrl && fileUrl) {
         // Upload directly to S3 using expo-file-system
-        // Use raw value 0 instead of FileSystem.FileSystemUploadType.BINARY_CONTENT
-        // because the enum may be undefined in some Expo SDK versions
         const uploadResult = await FileSystem.uploadAsync(presignedUrl, uri, {
           httpMethod: 'PUT',
-          uploadType: 0 as any,
+          uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
           headers: {
             'Content-Type': fileType,
           },
@@ -70,10 +69,8 @@ export async function uploadFile(
 
   // Method 2: Base64 upload (through backend)
   try {
-    // Use raw string 'base64' instead of FileSystem.EncodingType.Base64
-    // because the enum may be undefined in some Expo SDK versions
     const base64Data = await FileSystem.readAsStringAsync(uri, {
-      encoding: 'base64' as any,
+      encoding: FileSystem.EncodingType.Base64,
     });
 
     const base64Res = await fetch(`${API_BASE}/api/upload/base64`, {
