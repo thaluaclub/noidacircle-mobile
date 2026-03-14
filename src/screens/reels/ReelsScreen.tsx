@@ -5,39 +5,56 @@ import {
   FlatList,
   Dimensions,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Text,
   ActivityIndicator,
   ViewToken,
+  Share,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import Avatar from '../../components/Avatar';
 import { colors } from '../../theme/colors';
-import { postsAPI, likesAPI } from '../../services/api';
+import { postsAPI, likesAPI, commentsAPI } from '../../services/api';
 import { timeAgo, formatCount } from '../../utils/formatters';
-import type { Post } from '../../types';
+import type { Post, Comment } from '../../types';
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
+
+// Global mute state — persists across all reels
+let globalMuted = false;
 
 interface ReelItemProps {
   post: Post;
   isVisible: boolean;
+  onCommentPress: (post: Post) => void;
+  onSharePress: (post: Post) => void;
 }
 
-function ReelItem({ post, isVisible }: ReelItemProps) {
-  const [isMuted, setIsMuted] = useState(false);
+function ReelItem({ post, isVisible, onCommentPress, onSharePress }: ReelItemProps) {
+  const [isMuted, setIsMuted] = useState(globalMuted);
+  const [isPaused, setIsPaused] = useState(false);
   const [isLiked, setIsLiked] = useState(post.is_liked || false);
   const [likeCount, setLikeCount] = useState(post.likes_count || 0);
+  const [commentCount, setCommentCount] = useState(post.comments_count || 0);
 
   const player = useVideoPlayer(post.media_url || '', (p) => {
     p.loop = true;
-    p.muted = false;
+    p.muted = globalMuted;
     if (isVisible) p.play();
   });
 
   useEffect(() => {
     if (isVisible) {
+      setIsPaused(false);
+      player.muted = globalMuted;
+      setIsMuted(globalMuted);
       player.play();
     } else {
       player.pause();
@@ -64,21 +81,39 @@ function ReelItem({ post, isVisible }: ReelItemProps) {
     const newMuted = !isMuted;
     setIsMuted(newMuted);
     player.muted = newMuted;
+    // Persist mute state globally
+    globalMuted = newMuted;
   }, [isMuted, player]);
+
+  // Tap to pause/play
+  const handleVideoTap = useCallback(() => {
+    if (isPaused) {
+      player.play();
+      setIsPaused(false);
+    } else {
+      player.pause();
+      setIsPaused(true);
+    }
+  }, [isPaused, player]);
 
   return (
     <View style={[styles.reelContainer, { width: SCREEN_W, height: SCREEN_H }]}>
-      <VideoView
-        style={styles.video}
-        player={player}
-        contentFit="cover"
-        nativeControls={false}
-      />
-
-      {/* Mute button */}
-      <TouchableOpacity style={styles.muteButton} onPress={handleMuteToggle} activeOpacity={0.7}>
-        <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={22} color="#fff" />
-      </TouchableOpacity>
+      <TouchableWithoutFeedback onPress={handleVideoTap}>
+        <View style={styles.videoWrapper}>
+          <VideoView
+            style={styles.video}
+            player={player}
+            contentFit="cover"
+            nativeControls={false}
+          />
+          {/* Pause icon overlay */}
+          {isPaused && (
+            <View style={styles.pauseOverlay}>
+              <Ionicons name="play" size={60} color="rgba(255,255,255,0.7)" />
+            </View>
+          )}
+        </View>
+      </TouchableWithoutFeedback>
 
       {/* User info + caption (bottom left) */}
       <View style={styles.bottomLeft}>
@@ -107,8 +142,16 @@ function ReelItem({ post, isVisible }: ReelItemProps) {
         ) : null}
       </View>
 
-      {/* Action buttons (right side) */}
+      {/* Action buttons (right side) — mute is just above like */}
       <View style={styles.actions}>
+        {/* Mute button — at top of action column, just above like */}
+        <TouchableOpacity style={styles.actionBtn} onPress={handleMuteToggle} activeOpacity={0.7}>
+          <View style={styles.muteCircle}>
+            <Ionicons name={isMuted ? 'volume-mute' : 'volume-high'} size={20} color="#fff" />
+          </View>
+        </TouchableOpacity>
+
+        {/* Like */}
         <TouchableOpacity style={styles.actionBtn} onPress={handleLike} activeOpacity={0.8}>
           <Ionicons
             name={isLiked ? 'heart' : 'heart-outline'}
@@ -118,12 +161,14 @@ function ReelItem({ post, isVisible }: ReelItemProps) {
           <Text style={styles.actionCount}>{formatCount(likeCount)}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
+        {/* Comment */}
+        <TouchableOpacity style={styles.actionBtn} onPress={() => onCommentPress(post)} activeOpacity={0.8}>
           <Ionicons name="chatbubble-outline" size={26} color="#fff" />
-          <Text style={styles.actionCount}>{formatCount(post.comments_count || 0)}</Text>
+          <Text style={styles.actionCount}>{formatCount(commentCount)}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionBtn} activeOpacity={0.8}>
+        {/* Share */}
+        <TouchableOpacity style={styles.actionBtn} onPress={() => onSharePress(post)} activeOpacity={0.8}>
           <Ionicons name="share-outline" size={26} color="#fff" />
           <Text style={styles.actionCount}>{formatCount(post.shares_count || 0)}</Text>
         </TouchableOpacity>
@@ -143,6 +188,14 @@ export default function ReelsScreen() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
   const loadingMore = useRef(false);
+
+  // Comment modal state
+  const [commentModalVisible, setCommentModalVisible] = useState(false);
+  const [commentPost, setCommentPost] = useState<Post | null>(null);
+  const [comments, setComments] = useState<Comment[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [postingComment, setPostingComment] = useState(false);
 
   const loadReels = useCallback(async (pageNum: number, append = false) => {
     if (loadingMore.current && append) return;
@@ -185,11 +238,73 @@ export default function ReelsScreen() {
 
   const viewabilityConfig = useMemo(() => ({ itemVisiblePercentThreshold: 50 }), []);
 
+  // Comment handlers
+  const handleCommentPress = useCallback(async (post: Post) => {
+    setCommentPost(post);
+    setCommentModalVisible(true);
+    setLoadingComments(true);
+    try {
+      const res = await commentsAPI.getByPost(post.id, 1);
+      const commentsList = res.data?.comments || res.data?.data || (Array.isArray(res.data) ? res.data : []);
+      setComments(commentsList);
+    } catch (err) {
+      console.error('Error loading comments:', err);
+      setComments([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  }, []);
+
+  const handlePostComment = useCallback(async () => {
+    if (!commentText.trim() || !commentPost || postingComment) return;
+    setPostingComment(true);
+    try {
+      const res = await commentsAPI.create(commentPost.id, { content: commentText.trim() });
+      const newComment = res.data?.comment || res.data;
+      setComments((prev) => [newComment, ...prev]);
+      setCommentText('');
+      // Update comment count in reels list
+      setReels((prev) =>
+        prev.map((r) =>
+          r.id === commentPost.id
+            ? { ...r, comments_count: (r.comments_count || 0) + 1 }
+            : r
+        )
+      );
+    } catch (err) {
+      console.error('Error posting comment:', err);
+    } finally {
+      setPostingComment(false);
+    }
+  }, [commentText, commentPost, postingComment]);
+
+  // Share handler
+  const handleSharePress = useCallback(async (post: Post) => {
+    try {
+      const shareUrl = `https://noidacircle.com/post/${post.id}`;
+      const message = post.content
+        ? `${post.content.slice(0, 100)}${post.content.length > 100 ? '...' : ''}\n\n${shareUrl}`
+        : `Check out this reel on NoidaCircle!\n\n${shareUrl}`;
+      await Share.share({
+        message,
+        url: shareUrl,
+        title: 'Share Reel',
+      });
+    } catch (err) {
+      console.error('Share error:', err);
+    }
+  }, []);
+
   const renderReel = useCallback(
     ({ item, index }: { item: Post; index: number }) => (
-      <MemoReelItem post={item} isVisible={index === currentIndex} />
+      <MemoReelItem
+        post={item}
+        isVisible={index === currentIndex}
+        onCommentPress={handleCommentPress}
+        onSharePress={handleSharePress}
+      />
     ),
-    [currentIndex]
+    [currentIndex, handleCommentPress, handleSharePress]
   );
 
   if (loading) {
@@ -228,6 +343,90 @@ export default function ReelsScreen() {
           </View>
         }
       />
+
+      {/* Comment Modal */}
+      <Modal
+        visible={commentModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCommentModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
+          <TouchableOpacity
+            style={styles.commentModalOverlay}
+            activeOpacity={1}
+            onPress={() => setCommentModalVisible(false)}
+          >
+            <View
+              style={styles.commentModalContent}
+              onStartShouldSetResponder={() => true}
+            >
+              {/* Modal handle */}
+              <View style={styles.commentModalHandle} />
+              <Text style={styles.commentModalTitle}>
+                Comments {commentPost ? `(${commentPost.comments_count || 0})` : ''}
+              </Text>
+
+              {/* Comments list */}
+              {loadingComments ? (
+                <View style={styles.commentLoadingContainer}>
+                  <ActivityIndicator size="small" color={colors.primary[500]} />
+                </View>
+              ) : (
+                <ScrollView style={styles.commentsList} showsVerticalScrollIndicator={false}>
+                  {comments.length === 0 ? (
+                    <Text style={styles.noCommentsText}>No comments yet. Be the first!</Text>
+                  ) : (
+                    comments.map((comment) => (
+                      <View key={comment.id} style={styles.commentItem}>
+                        <Avatar
+                          uri={comment.user?.profile_image_url}
+                          name={comment.user?.full_name || comment.user?.username || ''}
+                          size={32}
+                        />
+                        <View style={styles.commentBody}>
+                          <Text style={styles.commentUsername}>
+                            {comment.user?.full_name || comment.user?.username || 'User'}
+                          </Text>
+                          <Text style={styles.commentContent}>{comment.content}</Text>
+                          <Text style={styles.commentTime}>{timeAgo(comment.created_at)}</Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </ScrollView>
+              )}
+
+              {/* Comment input */}
+              <View style={styles.commentInputRow}>
+                <TextInput
+                  style={styles.commentInput}
+                  placeholder="Add a comment..."
+                  placeholderTextColor="#999"
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  multiline
+                  maxLength={500}
+                />
+                <TouchableOpacity
+                  onPress={handlePostComment}
+                  disabled={!commentText.trim() || postingComment}
+                  style={[styles.commentSendBtn, { opacity: commentText.trim() ? 1 : 0.4 }]}
+                >
+                  {postingComment ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Ionicons name="send" size={18} color="#fff" />
+                  )}
+                </TouchableOpacity>
+              </View>
+            </View>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      </Modal>
     </View>
   );
 }
@@ -264,20 +463,18 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     position: 'relative',
   },
+  videoWrapper: {
+    flex: 1,
+  },
   video: {
     flex: 1,
     backgroundColor: '#000',
   },
-  muteButton: {
-    position: 'absolute',
-    top: 100,
-    right: 16,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+  pauseOverlay: {
+    ...StyleSheet.absoluteFillObject,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.15)',
   },
   bottomLeft: {
     position: 'absolute',
@@ -322,12 +519,116 @@ const styles = StyleSheet.create({
   },
   actionBtn: {
     alignItems: 'center',
-    marginVertical: 14,
+    marginVertical: 10,
   },
   actionCount: {
     color: '#fff',
     fontSize: 12,
     marginTop: 4,
     fontWeight: '600',
+  },
+  muteCircle: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Comment Modal
+  commentModalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  commentModalContent: {
+    backgroundColor: '#1a1a1a',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: SCREEN_H * 0.6,
+    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+  },
+  commentModalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#555',
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 12,
+  },
+  commentModalTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 12,
+    paddingHorizontal: 16,
+  },
+  commentLoadingContainer: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  commentsList: {
+    maxHeight: SCREEN_H * 0.35,
+    paddingHorizontal: 16,
+  },
+  noCommentsText: {
+    color: '#888',
+    textAlign: 'center',
+    paddingVertical: 30,
+    fontSize: 14,
+  },
+  commentItem: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    gap: 10,
+  },
+  commentBody: {
+    flex: 1,
+  },
+  commentUsername: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  commentContent: {
+    color: '#ddd',
+    fontSize: 14,
+    marginTop: 2,
+    lineHeight: 20,
+  },
+  commentTime: {
+    color: '#888',
+    fontSize: 11,
+    marginTop: 4,
+  },
+  commentInputRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    borderTopWidth: 0.5,
+    borderTopColor: '#333',
+    gap: 10,
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: '#2a2a2a',
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    color: '#fff',
+    fontSize: 14,
+    maxHeight: 80,
+  },
+  commentSendBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: colors.primary[500],
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
