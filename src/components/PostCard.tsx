@@ -90,7 +90,7 @@ function PostCard({
 
   const handleShare = useCallback(async () => {
     try {
-      const shareUrl = `https://noidacircle.com/post/${post.id}`;
+      const shareUrl = `https://noidacircle.com/share/post/${post.id}`;
       const caption = post.content
         ? `${post.content.substring(0, 200)}${post.content.length > 200 ? '...' : ''}`
         : (post.title || 'Check out this post on NoidaCircle!');
