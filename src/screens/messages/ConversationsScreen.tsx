@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Avatar from '../../components/Avatar';
+import OnlineIndicator from '../../components/OnlineIndicator';
 import EmptyState from '../../components/EmptyState';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
@@ -24,6 +25,8 @@ interface Participant {
   profile_image_url: string | null;
   is_verified?: boolean;
   verification_badge?: string;
+  is_online?: boolean;
+  last_seen_at?: string | null;
 }
 
 interface Conversation {
@@ -152,9 +155,18 @@ export default function ConversationsScreen() {
         })}
         activeOpacity={0.6}
       >
-        {/* Avatar */}
+        {/* Avatar with Online Indicator */}
         <View style={styles.avatarContainer}>
-          <Avatar uri={other.profile_image_url} name={other.full_name || other.username} size={54} />
+          <View style={{ position: 'relative' }}>
+            <Avatar uri={other.profile_image_url} name={other.full_name || other.username} size={54} />
+            <View style={{ position: 'absolute', bottom: 0, right: 0 }}>
+              <OnlineIndicator 
+                isOnline={other.is_online} 
+                lastSeenAt={other.last_seen_at} 
+                size={14} 
+              />
+            </View>
+          </View>
         </View>
 
         {/* Content */}
