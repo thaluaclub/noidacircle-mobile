@@ -12,6 +12,8 @@ import {
   ScrollView,
   FlatList,
   Dimensions,
+  Modal,
+  TextInput,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,6 +26,7 @@ import { FeedSkeleton } from '../../components/Skeleton';
 import EmptyState from '../../components/EmptyState';
 import usePostsStore from '../../store/postsStore';
 import useThemeStore from '../../store/themeStore';
+import useAuthStore from '../../store/authStore';
 import { postsAPI, notificationsAPI, recommendationsAPI, followAPI, communitiesAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 import type { Post, SearchUser } from '../../types';
@@ -33,12 +36,12 @@ type FeedNav = NativeStackNavigationProp<FeedStackParamList, 'Feed'>;
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
-// Feed tab definitions
+// Feed tab definitions — matching web
 const FEED_TABS = [
-  { key: 'all', label: 'For You', icon: 'sparkles' },
+  { key: 'for_you', label: 'For You', icon: 'sparkles' },
   { key: 'following', label: 'Following', icon: 'people' },
-  { key: 'communities', label: 'Communities', icon: 'globe' },
-  { key: 'latest', label: 'Noida Latest', icon: 'location' },
+  { key: 'news', label: 'News', icon: 'newspaper' },
+  { key: 'polls', label: 'Polls', icon: 'bar-chart' },
 ];
 
 // Types for recommendation cards
@@ -69,6 +72,7 @@ type FeedItem =
 
 export default function FeedScreen() {
   const dark = useThemeStore((s) => s.dark);
+  const user = useAuthStore((s) => s.user);
   const {
     posts,
     loading,
@@ -81,6 +85,7 @@ export default function FeedScreen() {
     loadMore,
     setFeedType,
     toggleLike,
+    toggleDownvote,
     toggleBookmark,
     removePost,
   } = usePostsStore();
@@ -89,6 +94,12 @@ export default function FeedScreen() {
 
   // Badge counts
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+
+  // Quote modal
+  const [quoteModalVisible, setQuoteModalVisible] = useState(false);
+  const [quoteTarget, setQuoteTarget] = useState<Post | null>(null);
+  const [quoteContent, setQuoteContent] = useState('');
+  const [quotePublishing, setQuotePublishing] = useState(false);
 
   // Recommendations
   const [suggestedPeople, setSuggestedPeople] = useState<RecommendedUser[]>([]);
@@ -232,6 +243,33 @@ export default function FeedScreen() {
     [removePost]
   );
 
+  // Quote post handler
+  const handleQuote = useCallback((post: Post) => {
+    setQuoteTarget(post);
+    setQuoteContent('');
+    setQuoteModalVisible(true);
+  }, []);
+
+  const handleQuoteSubmit = useCallback(async () => {
+    if (!quoteTarget || quotePublishing) return;
+    setQuotePublishing(true);
+    try {
+      await postsAPI.create({
+        content: quoteContent.trim() || ' ',
+        description: JSON.stringify({ type: 'quote', original_post_id: quoteTarget.id }),
+      });
+      setQuoteModalVisible(false);
+      setQuoteTarget(null);
+      setQuoteContent('');
+      Alert.alert('Quoted!', 'Your quote post has been published.');
+      refreshFeed();
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.error || 'Failed to quote post');
+    } finally {
+      setQuotePublishing(false);
+    }
+  }, [quoteTarget, quoteContent, quotePublishing, refreshFeed]);
+
   // Follow a recommended user
   const handleFollowUser = useCallback(async (userId: string) => {
     try {
@@ -260,35 +298,35 @@ export default function FeedScreen() {
           </TouchableOpacity>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recScroll}>
-          {users.map((user) => (
+          {users.map((u) => (
             <TouchableOpacity
-              key={user.id}
+              key={u.id}
               style={[styles.userCard, { borderColor, backgroundColor: dark ? colors.dark.bg : '#fff' }]}
-              onPress={() => handleUserPress(user.id)}
+              onPress={() => handleUserPress(u.id)}
               activeOpacity={0.7}
             >
-              <Avatar uri={user.profile_image_url} name={user.full_name || user.username} size={56} />
+              <Avatar uri={u.profile_image_url} name={u.full_name || u.username} size={56} />
               <View style={styles.userCardNameRow}>
                 <Text style={[styles.userCardName, { color: textColor }]} numberOfLines={1}>
-                  {user.full_name || user.username}
+                  {u.full_name || u.username}
                 </Text>
-                {user.is_verified && (
+                {u.is_verified && (
                   <Ionicons name="checkmark-circle" size={12} color={colors.primary[500]} />
                 )}
               </View>
               <Text style={[styles.userCardHandle, { color: mutedColor }]} numberOfLines={1}>
-                @{user.username}
+                @{u.username}
               </Text>
-              {user.account_type && user.account_type !== 'individual' && (
+              {u.account_type && u.account_type !== 'individual' && (
                 <View style={styles.userCardTypeBadge}>
                   <Text style={styles.userCardTypeText}>
-                    {user.account_type.charAt(0).toUpperCase() + user.account_type.slice(1)}
+                    {u.account_type.charAt(0).toUpperCase() + u.account_type.slice(1)}
                   </Text>
                 </View>
               )}
               <TouchableOpacity
                 style={styles.followButton}
-                onPress={() => handleFollowUser(user.id)}
+                onPress={() => handleFollowUser(u.id)}
                 activeOpacity={0.7}
               >
                 <Text style={styles.followButtonText}>Follow</Text>
@@ -360,12 +398,14 @@ export default function FeedScreen() {
               isVisible={visiblePostIds.has(item.data.id)}
               onPress={() => handlePostPress(item.data)}
               onLike={() => toggleLike(item.data.id)}
+              onDownvote={() => toggleDownvote(item.data.id)}
               onBookmark={() => toggleBookmark(item.data.id)}
               onComment={() => handlePostPress(item.data)}
               onUserPress={handleUserPress}
               onReelPress={handleReelPress}
               onEdit={handleEdit}
               onDelete={handleDelete}
+              onQuote={handleQuote}
             />
           );
         case 'recommended_people':
@@ -378,7 +418,7 @@ export default function FeedScreen() {
           return null;
       }
     },
-    [dark, visiblePostIds, toggleLike, toggleBookmark, handlePostPress, handleUserPress, handleReelPress, handleEdit, handleDelete, renderSuggestedPeople, renderSuggestedCommunities]
+    [dark, visiblePostIds, toggleLike, toggleDownvote, toggleBookmark, handlePostPress, handleUserPress, handleReelPress, handleEdit, handleDelete, handleQuote, renderSuggestedPeople, renderSuggestedCommunities]
   );
 
   const renderFooter = useCallback(() => {
@@ -390,18 +430,26 @@ export default function FeedScreen() {
     );
   }, [hasMore, posts.length]);
 
+  const emptyMessages: Record<string, { title: string; sub: string }> = {
+    for_you: { title: 'No posts yet', sub: 'Follow people in Noida to see their posts here' },
+    following: { title: 'No posts from people you follow', sub: 'Follow interesting people to see their posts here' },
+    news: { title: 'No news posts yet', sub: 'News posts will appear here when available' },
+    polls: { title: 'No polls yet', sub: 'Polls will appear here when someone creates one' },
+  };
+
   const renderEmpty = useCallback(() => {
     if (loading) return <FeedSkeleton />;
+    const msg = emptyMessages[feedType] || emptyMessages.for_you;
     return (
       <EmptyState
         icon="newspaper-outline"
-        title="No posts yet"
-        subtitle="Follow people in Noida to see their posts here"
+        title={msg.title}
+        subtitle={msg.sub}
         actionTitle="Explore"
         dark={dark}
       />
     );
-  }, [loading, dark]);
+  }, [loading, dark, feedType]);
 
   const keyExtractor = useCallback((item: FeedItem, index: number) => {
     if (item.type === 'post') return item.data.id;
@@ -433,7 +481,7 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      {/* Feed Tabs */}
+      {/* Feed Tabs — matching web (For You, Following, News, Polls) */}
       <View style={[styles.tabsContainer, { borderBottomColor: borderColor }]}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsScroll}>
           {FEED_TABS.map((tab) => {
@@ -495,6 +543,43 @@ export default function FeedScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.listContent}
       />
+
+      {/* Quote Modal */}
+      <Modal visible={quoteModalVisible} transparent animationType="slide" onRequestClose={() => setQuoteModalVisible(false)}>
+        <TouchableOpacity style={styles.quoteOverlay} activeOpacity={1} onPress={() => setQuoteModalVisible(false)}>
+          <View style={[styles.quoteContent, { backgroundColor: dark ? colors.dark.card : '#fff' }]}>
+            <View style={styles.quoteHandle} />
+            <Text style={[styles.quoteTitle, { color: textColor }]}>Quote Post</Text>
+            <TextInput
+              style={[styles.quoteInput, { color: textColor, borderColor }]}
+              placeholder="Add your thoughts..."
+              placeholderTextColor={mutedColor}
+              value={quoteContent}
+              onChangeText={setQuoteContent}
+              multiline
+              autoFocus
+            />
+            {quoteTarget && (
+              <View style={[styles.quotePreview, { borderColor }]}>
+                <Text style={[{ color: mutedColor, fontSize: 12 }]}>
+                  @{quoteTarget.user?.username}: {quoteTarget.content?.substring(0, 100)}
+                </Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.quoteSubmitBtn, { opacity: quotePublishing ? 0.5 : 1 }]}
+              onPress={handleQuoteSubmit}
+              disabled={quotePublishing}
+            >
+              {quotePublishing ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.quoteSubmitText}>Quote</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -701,6 +786,59 @@ const styles = StyleSheet.create({
   joinButtonText: {
     color: '#fff',
     fontSize: 12,
+    fontWeight: '700',
+  },
+  // Quote modal
+  quoteOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  quoteContent: {
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingBottom: 34,
+  },
+  quoteHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#ccc',
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  quoteTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  quoteInput: {
+    fontSize: 16,
+    lineHeight: 22,
+    minHeight: 80,
+    textAlignVertical: 'top',
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  quotePreview: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 16,
+  },
+  quoteSubmitBtn: {
+    backgroundColor: colors.primary[500],
+    paddingVertical: 12,
+    borderRadius: 24,
+    alignItems: 'center',
+  },
+  quoteSubmitText: {
+    color: '#fff',
+    fontSize: 16,
     fontWeight: '700',
   },
 });
