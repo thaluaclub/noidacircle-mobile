@@ -16,6 +16,7 @@ interface PostsState {
   refreshFeed: () => Promise<void>;
   loadMore: () => Promise<void>;
   toggleLike: (postId: string) => Promise<void>;
+  toggleDownvote: (postId: string) => Promise<void>;
   toggleBookmark: (postId: string) => Promise<void>;
   addPost: (post: Post) => void;
   removePost: (postId: string) => void;
@@ -79,8 +80,9 @@ const usePostsStore = create<PostsState>((set, get) => ({
 
     const post = posts[postIndex];
     const wasLiked = post.is_liked;
+    const wasDownvoted = post.is_downvoted;
 
-    // Optimistic update
+    // Optimistic update - if liking, also remove downvote
     const updatedPosts = [...posts];
     updatedPosts[postIndex] = {
       ...post,
@@ -88,6 +90,11 @@ const usePostsStore = create<PostsState>((set, get) => ({
       likes_count: wasLiked
         ? Math.max(0, post.likes_count - 1)
         : post.likes_count + 1,
+      // Remove downvote if liking
+      is_downvoted: wasLiked ? post.is_downvoted : false,
+      downvotes_count: (!wasLiked && wasDownvoted)
+        ? Math.max(0, (post.downvotes_count || 0) - 1)
+        : post.downvotes_count,
     };
     set({ posts: updatedPosts });
 
@@ -104,7 +111,49 @@ const usePostsStore = create<PostsState>((set, get) => ({
       const idx = currentPosts.findIndex((p) => p.id === postId);
       if (idx !== -1) {
         const reverted = [...currentPosts];
-        reverted[idx] = { ...reverted[idx], is_liked: wasLiked, likes_count: post.likes_count };
+        reverted[idx] = { ...reverted[idx], is_liked: wasLiked, likes_count: post.likes_count, is_downvoted: post.is_downvoted, downvotes_count: post.downvotes_count };
+        set({ posts: reverted });
+      }
+    }
+  },
+
+  toggleDownvote: async (postId: string) => {
+    const { posts } = get();
+    const postIndex = posts.findIndex((p) => p.id === postId);
+    if (postIndex === -1) return;
+
+    const post = posts[postIndex];
+    const wasDownvoted = post.is_downvoted;
+    const wasLiked = post.is_liked;
+
+    // Optimistic update - if downvoting, also remove like
+    const updatedPosts = [...posts];
+    updatedPosts[postIndex] = {
+      ...post,
+      is_downvoted: !wasDownvoted,
+      downvotes_count: wasDownvoted
+        ? Math.max(0, (post.downvotes_count || 0) - 1)
+        : (post.downvotes_count || 0) + 1,
+      // Remove like if downvoting
+      is_liked: wasDownvoted ? post.is_liked : false,
+      likes_count: (!wasDownvoted && wasLiked)
+        ? Math.max(0, post.likes_count - 1)
+        : post.likes_count,
+    };
+    set({ posts: updatedPosts });
+
+    try {
+      if (wasDownvoted) {
+        await likesAPI.removeDownvote(postId);
+      } else {
+        await likesAPI.downvotePost(postId);
+      }
+    } catch {
+      const currentPosts = get().posts;
+      const idx = currentPosts.findIndex((p) => p.id === postId);
+      if (idx !== -1) {
+        const reverted = [...currentPosts];
+        reverted[idx] = { ...reverted[idx], is_downvoted: wasDownvoted, downvotes_count: post.downvotes_count, is_liked: post.is_liked, likes_count: post.likes_count };
         set({ posts: reverted });
       }
     }
