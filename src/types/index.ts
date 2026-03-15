@@ -17,12 +17,12 @@ export interface Post {
   content: string;
   description: string | null;
   media_url: string | null;
-  media_type: 'image' | 'video' | null;
+  media_type: 'image' | 'video' | 'carousel' | null;
   category: string;
   visibility: 'public' | 'private' | 'followers';
   likes_count: number;
   comments_count: number;
-  shares_count: number;
+  shares_count: number; // Used as views_count
   is_pinned: boolean;
   is_archived: boolean;
   published_at: string;
@@ -33,6 +33,10 @@ export interface Post {
   is_liked: boolean;
   is_following: boolean | null;
   is_own: boolean;
+  is_downvoted?: boolean;
+  downvotes_count?: number;
+  // Quote post enrichment
+  quoted_post?: Post | null;
   // Client-side (for bookmarks)
   is_bookmarked?: boolean;
 }
@@ -117,6 +121,6 @@ export interface CreatePostData {
   description?: string;
   visibility?: 'public' | 'private' | 'followers';
   media_url?: string;
-  media_type?: 'image' | 'video';
+  media_type?: 'image' | 'video' | 'carousel';
   category?: string;
 }
