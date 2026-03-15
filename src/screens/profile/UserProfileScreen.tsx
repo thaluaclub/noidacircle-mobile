@@ -9,6 +9,7 @@ import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import Avatar from '../../components/Avatar';
+import OnlineIndicator from '../../components/OnlineIndicator';
 import Button from '../../components/Button';
 import EmptyState from '../../components/EmptyState';
 import useThemeStore from '../../store/themeStore';
@@ -38,6 +39,8 @@ interface UserProfile {
   school?: string | null; college?: string | null; work?: string | null;
   home_town?: string | null; facebook_url?: string | null;
   instagram_url?: string | null; twitter_url?: string | null;
+  is_online?: boolean;
+  last_seen_at?: string | null;
 }
 
 export default function UserProfileScreen() {
@@ -161,7 +164,12 @@ export default function UserProfileScreen() {
   const renderHeader = () => (
     <View>
       <View style={styles.profileSection}>
-        <Avatar uri={profile.profile_image_url} name={profile.full_name || profile.username} size={80} />
+        <View style={{ position: 'relative' }}>
+          <Avatar uri={profile.profile_image_url} name={profile.full_name || profile.username} size={80} />
+          <View style={{ position: 'absolute', bottom: 0, right: 0 }}>
+            <OnlineIndicator isOnline={profile.is_online} lastSeenAt={profile.last_seen_at} size={16} />
+          </View>
+        </View>
         <View style={styles.nameRow}>
           <Text style={[styles.displayName, { color: textColor }]}>{profile.full_name || profile.username}</Text>
           {profile.is_verified && <Ionicons name="checkmark-circle" size={18} color={colors.primary[500]} style={{ marginLeft: 4 }} />}
@@ -307,6 +315,6 @@ const styles = StyleSheet.create({
   notifBtn: { width: 38, height: 38, borderRadius: 19, borderWidth: 1.5, borderColor: colors.primary[500], alignItems: 'center', justifyContent: 'center' },
   notifBtnActive: { backgroundColor: colors.primary[500], borderColor: colors.primary[500] },
   textTile: { width: TILE, height: TILE, margin: 1, padding: 6, justifyContent: 'center' },
-  accountTypeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: 'rgba(59,130,246,0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
+  accountTypeBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, backgroundColor: 'rgba(59, 130, 246, 0.08)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12 },
   accountTypeText: { fontSize: 12, fontWeight: '600', color: colors.primary[500] },
 });
