@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, ActivityIndicator,
+  View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, ActivityIndicator, Linking,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -35,6 +35,9 @@ interface UserProfile {
   location: string | null; is_verified: boolean; is_private: boolean;
   followers_count: number; following_count: number; posts_count: number;
   is_following?: boolean; account_type?: string;
+  school?: string | null; college?: string | null; work?: string | null;
+  home_town?: string | null; facebook_url?: string | null;
+  instagram_url?: string | null; twitter_url?: string | null;
 }
 
 export default function UserProfileScreen() {
@@ -135,6 +138,26 @@ export default function UserProfileScreen() {
 
   const isOwnProfile = currentUser?.id === profile.id;
 
+  const renderDetailRow = (icon: string, label: string, value: string | null | undefined, isLink: boolean = false) => {
+    if (!value) return null;
+    return (
+      <TouchableOpacity
+        onPress={() => isLink && Linking.openURL(value)}
+        disabled={!isLink}
+        activeOpacity={isLink ? 0.7 : 1}
+      >
+        <View style={[styles.detailRow, { borderBottomColor: borderColor }]}>
+          <Ionicons name={icon as any} size={16} color={mutedColor} />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={[styles.detailLabel, { color: mutedColor }]}>{label}</Text>
+            <Text style={[styles.detailValue, { color: isLink ? colors.primary[500] : textColor }]}>{value}</Text>
+          </View>
+          {isLink && <Ionicons name="open-outline" size={14} color={colors.primary[500]} />}
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
   const renderHeader = () => (
     <View>
       <View style={styles.profileSection}>
@@ -158,6 +181,20 @@ export default function UserProfileScreen() {
           </View>
         ) : null}
       </View>
+
+      {/* Details Section */}
+      {(profile.school || profile.college || profile.work || profile.home_town || profile.facebook_url || profile.instagram_url || profile.twitter_url) && (
+        <View style={[styles.detailsSection, { borderTopColor: borderColor }]}>
+          {renderDetailRow('school-outline', 'School', profile.school)}
+          {renderDetailRow('school-outline', 'College', profile.college)}
+          {renderDetailRow('briefcase-outline', 'Work', profile.work)}
+          {renderDetailRow('home-outline', 'Home Town', profile.home_town)}
+          {renderDetailRow('logo-facebook', 'Facebook', profile.facebook_url, true)}
+          {renderDetailRow('logo-instagram', 'Instagram', profile.instagram_url, true)}
+          {renderDetailRow('logo-twitter', 'Twitter', profile.twitter_url, true)}
+        </View>
+      )}
+
       <View style={[styles.statsRow, { borderColor }]}>
         <View style={styles.stat}><Text style={[styles.statNum, { color: textColor }]}>{formatCount(profile.posts_count)}</Text><Text style={[styles.statLabel, { color: mutedColor }]}>Posts</Text></View>
         <TouchableOpacity style={styles.stat} onPress={() => navigation.navigate('FollowList', { userId: profile.id, tab: 'followers', username: profile.username })}>
@@ -258,6 +295,10 @@ const styles = StyleSheet.create({
   bio: { fontSize: 14, textAlign: 'center', marginTop: 6, lineHeight: 20 },
   locationRow: { flexDirection: 'row', alignItems: 'center', marginTop: 4, gap: 4 },
   locationText: { fontSize: 13 },
+  detailsSection: { borderTopWidth: 0.5, marginTop: 12, paddingHorizontal: 16, paddingVertical: 8 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 0.5 },
+  detailLabel: { fontSize: 11 },
+  detailValue: { fontSize: 13, fontWeight: '500', marginTop: 2 },
   statsRow: { flexDirection: 'row', justifyContent: 'space-around', paddingVertical: 16, marginTop: 16, marginHorizontal: 16, borderTopWidth: 0.5, borderBottomWidth: 0.5 },
   stat: { alignItems: 'center' },
   statNum: { fontSize: 18, fontWeight: '700' },
