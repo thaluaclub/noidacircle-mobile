@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   Platform,
   Modal,
+  FlatList,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -28,12 +29,18 @@ import type { CreatePostData } from '../../types';
 
 const MAX_CONTENT_LENGTH = 2000;
 const MAX_POLL_OPTIONS = 4;
+const MAX_IMAGES = 10;
 
 type PostMode = 'post' | 'story' | 'poll' | 'event';
 
 interface PollOption {
   id: number;
   text: string;
+}
+
+interface MediaItem {
+  uri: string;
+  type: 'image' | 'video';
 }
 
 export default function CreatePostScreen() {
@@ -44,8 +51,7 @@ export default function CreatePostScreen() {
 
   // Core state
   const [content, setContent] = useState('');
-  const [selectedMedia, setSelectedMedia] = useState<string | null>(null);
-  const [mediaType, setMediaType] = useState<'image' | 'video' | null>(null);
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [publishing, setPublishing] = useState(false);
   const [uploadProgress, setUploadProgress] = useState('');
   const [postMode, setPostMode] = useState<PostMode>('post');
@@ -60,7 +66,7 @@ export default function CreatePostScreen() {
     { id: 1, text: '' },
     { id: 2, text: '' },
   ]);
-  const [pollDuration, setPollDuration] = useState('24'); // hours
+  const [pollDuration, setPollDuration] = useState('24');
 
   // Event state
   const [eventTitle, setEventTitle] = useState('');
@@ -75,34 +81,51 @@ export default function CreatePostScreen() {
   const borderColor = dark ? colors.dark.border : colors.light.border;
   const cardBg = dark ? colors.dark.card : '#f5f5f5';
 
-  // Allow publishing with just text, just media, or both
+  const hasVideo = mediaItems.some(m => m.type === 'video');
+  const hasImages = mediaItems.some(m => m.type === 'image');
+
   const hasContent = content.trim().length > 0;
-  const hasMedia = !!selectedMedia;
+  const hasMedia = mediaItems.length > 0;
   const hasPollData = postMode === 'poll' && pollOptions.filter(o => o.text.trim()).length >= 2;
   const hasEventData = postMode === 'event' && eventTitle.trim().length > 0;
   const canPublish = (hasContent || hasMedia || hasPollData || hasEventData) && !publishing;
 
-  // ---- Image Handlers ----
-  const pickImageFromGallery = useCallback(async () => {
+  // ---- Multi-Image Handlers ----
+  const pickImagesFromGallery = useCallback(async () => {
     setShowImagePicker(false);
     try {
+      if (hasVideo) {
+        Alert.alert('Cannot mix', 'Remove video first to add images');
+        return;
+      }
+      const remainingSlots = MAX_IMAGES - mediaItems.length;
+      if (remainingSlots <= 0) {
+        Alert.alert('Limit reached', `You can add up to ${MAX_IMAGES} images`);
+        return;
+      }
+
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
+        allowsMultipleSelection: true,
+        selectionLimit: remainingSlots,
         quality: 0.7,
       });
-      if (!result.canceled && result.assets[0]) {
-        setSelectedMedia(result.assets[0].uri);
-        setMediaType('image');
+      if (!result.canceled && result.assets.length > 0) {
+        const newItems: MediaItem[] = result.assets.map(a => ({ uri: a.uri, type: 'image' as const }));
+        setMediaItems(prev => [...prev, ...newItems].slice(0, MAX_IMAGES));
       }
     } catch (err: any) {
       Alert.alert('Error', 'Could not open gallery: ' + (err.message || 'Unknown error'));
     }
-  }, []);
+  }, [hasVideo, mediaItems.length]);
 
   const takePhotoFromCamera = useCallback(async () => {
     setShowImagePicker(false);
     try {
+      if (hasVideo) {
+        Alert.alert('Cannot mix', 'Remove video first to add images');
+        return;
+      }
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Camera access is required.');
@@ -113,18 +136,21 @@ export default function CreatePostScreen() {
         quality: 0.7,
       });
       if (!result.canceled && result.assets[0]) {
-        setSelectedMedia(result.assets[0].uri);
-        setMediaType('image');
+        setMediaItems(prev => [...prev, { uri: result.assets[0].uri, type: 'image' }].slice(0, MAX_IMAGES));
       }
     } catch (err: any) {
       Alert.alert('Error', 'Could not open camera: ' + (err.message || 'Unknown error'));
     }
-  }, []);
+  }, [hasVideo]);
 
   // ---- Reel/Video Handlers ----
   const pickVideoFromGallery = useCallback(async () => {
     setShowReelPicker(false);
     try {
+      if (mediaItems.length > 0) {
+        Alert.alert('Cannot mix', 'Remove existing media first to add a video');
+        return;
+      }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos'],
         allowsEditing: true,
@@ -132,17 +158,20 @@ export default function CreatePostScreen() {
         videoMaxDuration: 120,
       });
       if (!result.canceled && result.assets[0]) {
-        setSelectedMedia(result.assets[0].uri);
-        setMediaType('video');
+        setMediaItems([{ uri: result.assets[0].uri, type: 'video' }]);
       }
     } catch (err: any) {
       Alert.alert('Error', 'Could not pick video: ' + (err.message || 'Unknown error'));
     }
-  }, []);
+  }, [mediaItems.length]);
 
   const recordVideoFromCamera = useCallback(async () => {
     setShowReelPicker(false);
     try {
+      if (mediaItems.length > 0) {
+        Alert.alert('Cannot mix', 'Remove existing media first to add a video');
+        return;
+      }
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert('Permission needed', 'Camera access is required.');
@@ -154,17 +183,19 @@ export default function CreatePostScreen() {
         videoMaxDuration: 60,
       });
       if (!result.canceled && result.assets[0]) {
-        setSelectedMedia(result.assets[0].uri);
-        setMediaType('video');
+        setMediaItems([{ uri: result.assets[0].uri, type: 'video' }]);
       }
     } catch (err: any) {
       Alert.alert('Error', 'Could not record video: ' + (err.message || 'Unknown error'));
     }
+  }, [mediaItems.length]);
+
+  const removeMedia = useCallback((index: number) => {
+    setMediaItems(prev => prev.filter((_, i) => i !== index));
   }, []);
 
-  const removeMedia = useCallback(() => {
-    setSelectedMedia(null);
-    setMediaType(null);
+  const removeAllMedia = useCallback(() => {
+    setMediaItems([]);
   }, []);
 
   // ---- Poll Handlers ----
@@ -182,6 +213,24 @@ export default function CreatePostScreen() {
     setPollOptions(prev => prev.map(o => o.id === id ? { ...o, text } : o));
   }, []);
 
+  // ---- Upload all media ----
+  const uploadAllMedia = async (): Promise<{ urls: string[]; type: 'image' | 'video' } | null> => {
+    if (mediaItems.length === 0) return null;
+    try {
+      const urls: string[] = [];
+      for (let i = 0; i < mediaItems.length; i++) {
+        const item = mediaItems[i];
+        setUploadProgress(`Uploading ${i + 1}/${mediaItems.length}...`);
+        const mimeType = getMimeType(item.uri);
+        const url = await uploadFile(item.uri, item.type === 'video' ? 'reels' : 'posts', mimeType);
+        urls.push(url);
+      }
+      return { urls, type: mediaItems[0].type };
+    } catch (err: any) {
+      throw err;
+    }
+  };
+
   // ---- Publish ----
   const handlePublish = useCallback(async () => {
     if (!canPublish) return;
@@ -191,16 +240,12 @@ export default function CreatePostScreen() {
     setUploadProgress('');
 
     try {
-      let mediaUrl: string | undefined;
-      let uploadMediaType: 'image' | 'video' | undefined;
+      let mediaResult: { urls: string[]; type: 'image' | 'video' } | null = null;
 
-      // Step 1: Upload media if selected
-      if (selectedMedia && mediaType) {
+      if (mediaItems.length > 0) {
         try {
           setUploadProgress('Uploading media...');
-          const mimeType = getMimeType(selectedMedia);
-          mediaUrl = await uploadFile(selectedMedia, 'posts', mimeType);
-          uploadMediaType = mediaType;
+          mediaResult = await uploadAllMedia();
         } catch (uploadErr: any) {
           const uploadMsg = uploadErr.message || 'Media upload failed';
           Alert.alert('Upload Error', uploadMsg, [
@@ -211,24 +256,23 @@ export default function CreatePostScreen() {
         }
       }
 
-      // Step 2: Create the post
-      await createPost(mediaUrl, uploadMediaType);
+      await createPost(
+        mediaResult ? (mediaResult.urls.length === 1 ? mediaResult.urls[0] : JSON.stringify(mediaResult.urls)) : undefined,
+        mediaResult ? (mediaResult.urls.length > 1 ? 'carousel' : mediaResult.type) : undefined
+      );
 
     } catch (err: any) {
       setPublishing(false);
       setUploadProgress('');
-      const msg = err.response?.data?.error
-        || err.message
-        || 'Something went wrong. Please try again.';
+      const msg = err.response?.data?.error || err.message || 'Something went wrong. Please try again.';
       Alert.alert('Error', msg);
     }
-  }, [canPublish, publishing, content, selectedMedia, mediaType, postMode, pollOptions, pollDuration, eventTitle, eventDate, eventLocation, user, addPost, navigation]);
+  }, [canPublish, publishing, content, mediaItems, postMode, pollOptions, pollDuration, eventTitle, eventDate, eventLocation, user, addPost, navigation]);
 
-  const createPost = async (mediaUrl?: string, uploadMediaType?: 'image' | 'video') => {
+  const createPost = async (mediaUrl?: string, uploadMediaType?: 'image' | 'video' | 'carousel') => {
     try {
       setUploadProgress('Publishing...');
 
-      // Build content - use text if available, otherwise empty string
       const finalContent = content.trim() || ' ';
 
       const postData: CreatePostData = {
@@ -238,13 +282,12 @@ export default function CreatePostScreen() {
 
       if (mediaUrl) {
         postData.media_url = mediaUrl;
-        postData.media_type = uploadMediaType;
+        postData.media_type = uploadMediaType as any;
         if (uploadMediaType === 'video' && !postData.category) {
           postData.category = 'reel';
         }
       }
 
-      // Add poll/event metadata
       if (postMode === 'poll') {
         const validOptions = pollOptions.filter(o => o.text.trim());
         if (validOptions.length >= 2) {
@@ -272,7 +315,6 @@ export default function CreatePostScreen() {
       }
 
       const res = await postsAPI.create(postData);
-      // Backend returns flat post object (status 201), not { post: ... }
       const newPost = res.data;
 
       if (!newPost || !newPost.id) {
@@ -292,12 +334,13 @@ export default function CreatePostScreen() {
         is_following: null,
         is_own: true,
         is_bookmarked: false,
+        is_downvoted: false,
+        downvotes_count: 0,
       });
 
       // Reset all state
       setContent('');
-      setSelectedMedia(null);
-      setMediaType(null);
+      setMediaItems([]);
       setUploadProgress('');
       setPostMode('post');
       setPollOptions([{ id: 1, text: '' }, { id: 2, text: '' }]);
@@ -313,9 +356,7 @@ export default function CreatePostScreen() {
     } catch (err: any) {
       setPublishing(false);
       setUploadProgress('');
-      const msg = err.response?.data?.error
-        || err.message
-        || 'Failed to publish. Please try again.';
+      const msg = err.response?.data?.error || err.message || 'Failed to publish. Please try again.';
       Alert.alert('Publish Error', msg);
     }
   };
@@ -466,44 +507,78 @@ export default function CreatePostScreen() {
             </View>
           )}
 
-          {/* Selected media preview */}
-          {selectedMedia && (
+          {/* Multi-image preview grid */}
+          {mediaItems.length > 0 && !hasVideo && (
+            <View style={styles.mediaGridContainer}>
+              <View style={[styles.mediaGrid, {
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+              }]}>
+                {mediaItems.map((item, i) => (
+                  <View key={i} style={styles.mediaGridItem}>
+                    <Image source={{ uri: item.uri }} style={styles.gridImage} contentFit="cover" transition={200} />
+                    <TouchableOpacity onPress={() => removeMedia(i)} style={styles.gridRemoveBtn} disabled={publishing}>
+                      <Ionicons name="close-circle" size={22} color="#fff" />
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {mediaItems.length < MAX_IMAGES && (
+                  <TouchableOpacity
+                    style={[styles.addMoreBtn, { borderColor }]}
+                    onPress={() => setShowImagePicker(true)}
+                    disabled={publishing}
+                  >
+                    <Ionicons name="add" size={28} color={mutedColor} />
+                    <Text style={[styles.addMoreText, { color: mutedColor }]}>Add</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+              <View style={styles.mediaGridFooter}>
+                <Text style={[styles.mediaCountText, { color: mutedColor }]}>
+                  {mediaItems.length} image{mediaItems.length !== 1 ? 's' : ''} selected
+                  {mediaItems.length > 1 ? ' (carousel)' : ''}
+                </Text>
+                <TouchableOpacity onPress={removeAllMedia} disabled={publishing}>
+                  <Text style={styles.removeAllText}>Remove all</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
+          {/* Video preview */}
+          {hasVideo && mediaItems.length === 1 && (
             <View style={styles.mediaPreview}>
-              {mediaType === 'image' ? (
-                <Image source={{ uri: selectedMedia }} style={styles.previewImage} contentFit="contain" transition={200} />
-              ) : (
-                <View style={[styles.previewImage, styles.videoPreview]}>
-                  <Ionicons name="videocam" size={40} color="#fff" />
-                  <Text style={styles.videoPreviewText}>Video selected</Text>
-                </View>
-              )}
-              <TouchableOpacity onPress={removeMedia} style={styles.removeMediaBtn} disabled={publishing}>
+              <View style={[styles.previewImage, styles.videoPreview]}>
+                <Ionicons name="videocam" size={40} color="#fff" />
+                <Text style={styles.videoPreviewText}>Video selected</Text>
+              </View>
+              <TouchableOpacity onPress={() => removeMedia(0)} style={styles.removeMediaBtn} disabled={publishing}>
                 <Ionicons name="close-circle" size={28} color="#fff" />
               </TouchableOpacity>
-              {mediaType === 'video' && (
-                <View style={styles.mediaTypeBadge}>
-                  <Ionicons name="videocam" size={14} color="#fff" />
-                  <Text style={styles.mediaTypeBadgeText}>Reel</Text>
-                </View>
-              )}
+              <View style={styles.mediaTypeBadge}>
+                <Ionicons name="videocam" size={14} color="#fff" />
+                <Text style={styles.mediaTypeBadgeText}>Reel</Text>
+              </View>
             </View>
           )}
         </ScrollView>
 
-        {/* Bottom toolbar - 5 options - pushed above keyboard */}
+        {/* Bottom toolbar */}
         <View style={[styles.toolbar, { borderTopColor: borderColor, backgroundColor: bg, marginBottom: keyboardHeight > 0 ? keyboardHeight : 0 }]}>
           <TouchableOpacity
             onPress={() => { setPostMode('post'); setShowImagePicker(true); }}
-            style={[styles.toolBtn, postMode === 'post' && selectedMedia && mediaType === 'image' && styles.toolBtnActive]}
+            style={[styles.toolBtn, hasImages && styles.toolBtnActive]}
             disabled={publishing}
           >
             <Ionicons name="image" size={22} color={colors.primary[500]} />
-            <Text style={[styles.toolLabel, { color: mutedColor }]}>Image</Text>
+            <Text style={[styles.toolLabel, { color: mutedColor }]}>
+              {mediaItems.length > 0 && hasImages ? `${mediaItems.length}/${MAX_IMAGES}` : 'Image'}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
             onPress={() => { setPostMode('post'); setShowReelPicker(true); }}
-            style={[styles.toolBtn, postMode === 'post' && selectedMedia && mediaType === 'video' && styles.toolBtnActive]}
+            style={[styles.toolBtn, hasVideo && styles.toolBtnActive]}
             disabled={publishing}
           >
             <Ionicons name="videocam" size={22} color="#e11d48" />
@@ -541,7 +616,7 @@ export default function CreatePostScreen() {
 
       {/* Image Picker Modal */}
       {renderPickerModal(showImagePicker, () => setShowImagePicker(false), 'Add Photo', [
-        { icon: 'images-outline', label: 'Choose from Gallery', onPress: pickImageFromGallery },
+        { icon: 'images-outline', label: 'Choose from Gallery', onPress: pickImagesFromGallery },
         { icon: 'camera-outline', label: 'Take a Photo', onPress: takePhotoFromCamera },
       ])}
 
@@ -596,7 +671,22 @@ const styles = StyleSheet.create({
   eventSection: { marginTop: 8, gap: 10 },
   eventInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
 
-  // Media preview
+  // Multi-image grid
+  mediaGridContainer: { marginTop: 12 },
+  mediaGrid: { gap: 8 },
+  mediaGridItem: { width: '30%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', position: 'relative', marginBottom: 8, marginRight: '3.33%' },
+  gridImage: { width: '100%', height: '100%' },
+  gridRemoveBtn: { position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 11 },
+  addMoreBtn: {
+    width: '30%', aspectRatio: 1, borderRadius: 10, borderWidth: 1.5, borderStyle: 'dashed',
+    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+  },
+  addMoreText: { fontSize: 11, fontWeight: '600', marginTop: 2 },
+  mediaGridFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 },
+  mediaCountText: { fontSize: 12 },
+  removeAllText: { fontSize: 12, color: '#ef4444', fontWeight: '500' },
+
+  // Single media / video preview
   mediaPreview: { marginTop: 8, borderRadius: 12, overflow: 'hidden', position: 'relative' },
   previewImage: { width: '100%', height: 280, borderRadius: 12 },
   videoPreview: { backgroundColor: '#1a1a1a', alignItems: 'center', justifyContent: 'center' },
