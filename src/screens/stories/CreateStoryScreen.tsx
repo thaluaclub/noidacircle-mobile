@@ -275,7 +275,7 @@ export default function CreateStoryScreen() {
     <View style={styles.container}>
       {/* Preview */}
       {mediaType === 'image' && mediaUri && (
-        <Image source={{ uri: mediaUri }} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+        <Image source={{ uri: mediaUri }} style={StyleSheet.absoluteFillObject} contentFit="contain" />
       )}
       {mediaType === 'video' && (
         <View style={[StyleSheet.absoluteFillObject, { backgroundColor: '#111', alignItems: 'center', justifyContent: 'center' }]}>
@@ -387,3 +387,4 @@ const styles = StyleSheet.create({
   },
   progressText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });
+
