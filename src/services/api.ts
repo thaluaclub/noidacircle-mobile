@@ -82,6 +82,7 @@ export const postsAPI = {
   archive: (id: string) => api.post(`/posts/${id}/archive`),
   vote: (id: string, optionIndex: number) => api.post(`/posts/${id}/vote`, { optionIndex }),
   getPoll: (id: string) => api.get(`/posts/${id}/poll`),
+  recordView: (id: string) => api.post(`/posts/${id}/view`),
 };
 
 // Comments API
@@ -103,6 +104,8 @@ export const likesAPI = {
   likeComment: (id: string) => api.post(`/likes/comment/${id}`),
   unlikeComment: (id: string) => api.delete(`/likes/comment/${id}`),
   postLikers: (id: string) => api.get(`/likes/post/${id}/users`),
+  downvotePost: (id: string) => api.post(`/likes/post/${id}/downvote`),
+  removeDownvote: (id: string) => api.delete(`/likes/post/${id}/downvote`),
 };
 
 // Follow API
@@ -138,12 +141,10 @@ export const notificationsAPI = {
   unreadCount: () => api.get('/notifications/unread-count'),
   markRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
-  // Push notification registration
   registerPushToken: (token: string, platform: string) =>
     api.post('/notifications/push-token', { token, platform }),
   removePushToken: (token: string) =>
     api.delete('/notifications/push-token', { data: { token } }),
-  // Notification preferences for specific users/pages
   subscribe: (targetId: string) =>
     api.post(`/notifications/subscribe/${targetId}`),
   unsubscribe: (targetId: string) =>
