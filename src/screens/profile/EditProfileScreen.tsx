@@ -1,6 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator,
+  View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +24,14 @@ export default function EditProfileScreen() {
   const [bio, setBio] = useState(user?.bio || '');
   const [location, setLocation] = useState(user?.location || '');
   const [accountType, setAccountType] = useState(user?.account_type || 'individual');
+  const [school, setSchool] = useState(user?.school || '');
+  const [college, setCollege] = useState(user?.college || '');
+  const [work, setWork] = useState(user?.work || '');
+  const [homeTown, setHomeTown] = useState(user?.home_town || '');
+  const [dob, setDob] = useState(user?.date_of_birth || '');
+  const [facebookUrl, setFacebookUrl] = useState(user?.facebook_url || '');
+  const [instagramUrl, setInstagramUrl] = useState(user?.instagram_url || '');
+  const [twitterUrl, setTwitterUrl] = useState(user?.twitter_url || '');
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const keyboardHeight = useKeyboardHeight();
@@ -31,8 +39,6 @@ export default function EditProfileScreen() {
   const ACCOUNT_TYPES = [
     { key: 'individual', label: 'Individual', icon: 'person-outline', desc: 'Personal account' },
     { key: 'business', label: 'Business', icon: 'briefcase-outline', desc: 'Company or startup' },
-    { key: 'brand', label: 'Brand', icon: 'pricetag-outline', desc: 'Product or brand page' },
-    { key: 'page', label: 'Page', icon: 'flag-outline', desc: 'Public figure or community' },
   ];
 
   const bg = dark ? colors.dark.bg : '#ffffff';
@@ -68,7 +74,14 @@ export default function EditProfileScreen() {
         display_name: displayName.trim(),
         bio: bio.trim(),
         location: location.trim(),
-        account_type: accountType,
+        school: school.trim(),
+        college: college.trim(),
+        work: work.trim(),
+        home_town: homeTown.trim(),
+        date_of_birth: dob.trim() || null,
+        facebook_url: facebookUrl.trim() || null,
+        instagram_url: instagramUrl.trim() || null,
+        twitter_url: twitterUrl.trim() || null,
       };
       if (profileImageUrl) data.profile_image_url = profileImageUrl;
 
@@ -76,7 +89,7 @@ export default function EditProfileScreen() {
 
       // Also update account type via dedicated endpoint
       try {
-        await usersAPI.updateAccountType({ account_type: accountType });
+        await usersAPI.updateAccountType({ account_type: accountType, account_category: 'general' });
       } catch {}
 
       setUser({ ...user!, ...data, account_type: accountType, profile_image_url: profileImageUrl || user?.profile_image_url, avatar_url: profileImageUrl || user?.avatar_url });
@@ -88,7 +101,7 @@ export default function EditProfileScreen() {
     } finally {
       setSaving(false);
     }
-  }, [displayName, bio, location, avatarUri, user, setUser, navigation]);
+  }, [displayName, bio, location, accountType, school, college, work, homeTown, dob, facebookUrl, instagramUrl, twitterUrl, avatarUri, user, setUser, navigation]);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: bg }]} edges={['top']}>
@@ -160,9 +173,115 @@ export default function EditProfileScreen() {
             />
           </View>
 
-          {/* Account Type */}
+          {/* Details Section */}
+          <View style={[styles.sectionHeader, { borderTopColor: borderColor }]}>
+            <Text style={[styles.sectionTitle, { color: mutedColor }]}>Details (Optional)</Text>
+          </View>
+
           <View style={styles.field}>
-            <Text style={[styles.label, { color: mutedColor }]}>Account Type</Text>
+            <Text style={[styles.label, { color: mutedColor }]}>School</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={school}
+              onChangeText={setSchool}
+              placeholder="Your school"
+              placeholderTextColor={mutedColor}
+              maxLength={50}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>College</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={college}
+              onChangeText={setCollege}
+              placeholder="Your college"
+              placeholderTextColor={mutedColor}
+              maxLength={50}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Work</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={work}
+              onChangeText={setWork}
+              placeholder="Company or job title"
+              placeholderTextColor={mutedColor}
+              maxLength={50}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Home Town</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={homeTown}
+              onChangeText={setHomeTown}
+              placeholder="Your hometown"
+              placeholderTextColor={mutedColor}
+              maxLength={50}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Date of Birth</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={dob}
+              onChangeText={setDob}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={mutedColor}
+              maxLength={10}
+            />
+          </View>
+
+          {/* Social Links Section */}
+          <View style={[styles.sectionHeader, { borderTopColor: borderColor }]}>
+            <Text style={[styles.sectionTitle, { color: mutedColor }]}>Social Links (Optional)</Text>
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Facebook</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={facebookUrl}
+              onChangeText={setFacebookUrl}
+              placeholder="Facebook URL"
+              placeholderTextColor={mutedColor}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Instagram</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={instagramUrl}
+              onChangeText={setInstagramUrl}
+              placeholder="Instagram URL"
+              placeholderTextColor={mutedColor}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={[styles.label, { color: mutedColor }]}>Twitter</Text>
+            <TextInput
+              style={[styles.input, { color: textColor, backgroundColor: inputBg, borderColor }]}
+              value={twitterUrl}
+              onChangeText={setTwitterUrl}
+              placeholder="Twitter URL"
+              placeholderTextColor={mutedColor}
+            />
+          </View>
+
+          {/* Account Type */}
+          <View style={[styles.sectionHeader, { borderTopColor: borderColor }]}>
+            <Text style={[styles.sectionTitle, { color: mutedColor }]}>Account Type</Text>
+          </View>
+
+          <View style={styles.field}>
             <View style={styles.accountTypeGrid}>
               {ACCOUNT_TYPES.map((type) => {
                 const isSelected = accountType === type.key;
@@ -212,6 +331,8 @@ const styles = StyleSheet.create({
   input: { borderRadius: 10, borderWidth: 0.5, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
   bioInput: { minHeight: 80, textAlignVertical: 'top' },
   charCount: { fontSize: 11, textAlign: 'right', marginTop: 4 },
+  sectionHeader: { paddingHorizontal: 16, paddingVertical: 12, borderTopWidth: 0.5, marginTop: 8 },
+  sectionTitle: { fontSize: 12, fontWeight: '600', textTransform: 'uppercase' },
   accountTypeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   accountTypeCard: { width: '47%', borderWidth: 1.5, borderRadius: 12, padding: 12, alignItems: 'center', position: 'relative' },
   accountTypeLabel: { fontSize: 14, fontWeight: '600', marginTop: 6 },
