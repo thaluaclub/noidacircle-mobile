@@ -238,6 +238,8 @@ export const storiesAPI = {
   markViewed: (id: string) => api.post(`/stories/${id}/view`),
   getMy: () => api.get('/stories/my'),
   delete: (id: string) => api.delete(`/stories/${id}`),
+  getViewers: (id: string) => api.get(`/stories/${id}/viewers`),
 };
 
 export default api;
+
