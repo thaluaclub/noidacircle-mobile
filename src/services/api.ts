@@ -229,4 +229,15 @@ export const locationAPI = {
     api.get(`/communities/nearby?lat=${lat}&lng=${lng}&radius=${radius}&page=${page}`),
 };
 
+
+// Stories API
+export const storiesAPI = {
+  getFeed: () => api.get('/stories/feed'),
+  create: (data: { media_url?: string; media_type: 'image' | 'video' | 'text'; caption?: string; bg_color?: string; text_content?: string }) =>
+    api.post('/stories', data),
+  markViewed: (id: string) => api.post(`/stories/${id}/view`),
+  getMy: () => api.get('/stories/my'),
+  delete: (id: string) => api.delete(`/stories/${id}`),
+};
+
 export default api;
