@@ -17,10 +17,14 @@ export interface ValidationError {
   message: string;
 }
 
-export const validateLogin = (email: string, password: string): ValidationError[] => {
+/**
+ * Validate login - accepts email OR username
+ */
+export const validateLogin = (identifier: string, password: string): ValidationError[] => {
   const errors: ValidationError[] = [];
-  if (!email.trim()) errors.push({ field: 'email', message: 'Email is required' });
-  else if (!isValidEmail(email)) errors.push({ field: 'email', message: 'Invalid email address' });
+  if (!identifier.trim()) {
+    errors.push({ field: 'identifier', message: 'Email or username is required' });
+  }
   if (!password) errors.push({ field: 'password', message: 'Password is required' });
   else if (!isValidPassword(password)) errors.push({ field: 'password', message: 'Password must be at least 6 characters' });
   return errors;
