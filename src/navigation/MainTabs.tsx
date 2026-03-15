@@ -8,15 +8,14 @@ import { messagesAPI } from '../services/api';
 
 // Tab screens / stacks
 import FeedStack from './FeedStack';
-import ExploreStack from './ExploreStack';
-import ReelsStack from './ReelsStack';
+import StoriesStack from './StoriesStack';
 import CreatePostScreen from '../screens/create/CreatePostScreen';
 import MessagesStack from './MessagesStack';
 import ProfileStack from './ProfileStack';
 
 export type MainTabsParamList = {
   FeedTab: undefined;
-  ReelsTab: undefined;
+  StoriesTab: undefined;
   CreateTab: undefined;
   MessagesTab: undefined;
   ProfileTab: undefined;
@@ -53,8 +52,8 @@ export default function MainTabs() {
             case 'FeedTab':
               iconName = focused ? 'home' : 'home-outline';
               break;
-            case 'ReelsTab':
-              iconName = focused ? 'play-circle' : 'play-circle-outline';
+            case 'StoriesTab':
+              iconName = focused ? 'albums' : 'albums-outline';
               break;
             case 'CreateTab':
               iconName = focused ? 'add-circle' : 'add-circle-outline';
@@ -102,9 +101,9 @@ export default function MainTabs() {
         options={{ tabBarLabel: 'Home' }}
       />
       <Tab.Screen
-        name="ReelsTab"
-        component={ReelsStack}
-        options={{ tabBarLabel: 'Reels' }}
+        name="StoriesTab"
+        component={StoriesStack}
+        options={{ tabBarLabel: 'Stories' }}
       />
       <Tab.Screen
         name="CreateTab"
