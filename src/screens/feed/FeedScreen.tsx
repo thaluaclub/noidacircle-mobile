@@ -40,6 +40,8 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const FEED_TABS = [
   { key: 'for_you', label: 'For You', icon: 'sparkles' },
   { key: 'following', label: 'Following', icon: 'people' },
+  { key: 'reels', label: 'Reels', icon: 'play-circle' },
+  { key: 'events', label: 'Events', icon: 'calendar' },
   { key: 'news', label: 'News', icon: 'newspaper' },
   { key: 'polls', label: 'Polls', icon: 'bar-chart' },
 ];
