@@ -8,9 +8,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRoute, useNavigation } from '@react-navigation/native';
 import type { RouteProp } from '@react-navigation/native';
 import Avatar from '../../components/Avatar';
+import OnlineIndicator from '../../components/OnlineIndicator';
 import useThemeStore from '../../store/themeStore';
 import useAuthStore from '../../store/authStore';
-import { messagesAPI } from '../../services/api';
+import { messagesAPI, usersAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 import type { MessagesStackParamList } from '../../navigation/MessagesStack';
 
@@ -26,6 +27,14 @@ interface Message {
   is_edited: boolean;
   _sending?: boolean;
   _failed?: boolean;
+}
+
+interface RecipientProfile {
+  id: string;
+  username: string;
+  full_name: string | null;
+  is_online?: boolean;
+  last_seen_at?: string | null;
 }
 
 // Robust time formatter for chat messages
@@ -54,6 +63,25 @@ function formatDateHeader(dateStr: string): string {
   if (diffDays === 1) return 'Yesterday';
   if (diffDays < 7) return date.toLocaleDateString('en-IN', { weekday: 'long' });
   return date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
+
+
+// Format last seen time
+function formatLastSeen(lastSeenAt: string | null | undefined): string {
+  if (!lastSeenAt) return 'Last seen recently';
+  const date = new Date(lastSeenAt);
+  if (isNaN(date.getTime())) return 'Last seen recently';
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  
+  if (diffMins < 1) return 'Active now';
+  if (diffMins < 60) return `Last seen ${diffMins}m ago`;
+  if (diffHours < 24) return `Last seen ${diffHours}h ago`;
+  if (diffDays === 1) return 'Last seen yesterday';
+  return `Last seen ${diffDays}d ago`;
+}
 }
 
 export default function ChatScreen() {
@@ -64,6 +92,7 @@ export default function ChatScreen() {
   const user = useAuthStore((s) => s.user);
 
   const [messages, setMessages] = useState<Message[]>([]);
+  const [recipientProfile, setRecipientProfile] = useState<RecipientProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
@@ -91,7 +120,40 @@ export default function ChatScreen() {
   const inputBg = dark ? colors.dark.card : '#ffffff';
   const headerBg = dark ? colors.dark.card : '#ffffff';
 
-  // Fetch messages
+  // Fetch recipient profile for online status
+  const fetchRecipientProfile = useCallback(async () => {
+    if (!conversationId) return;
+    try {
+      const res = await messagesAPI.getMessages(conversationId, 1);
+      const msgs = res.data?.messages || res.data || [];
+      if (msgs.length > 0) {
+        const msg = msgs[0];
+        // Get sender profile if we don't have it
+        if (msg.sender_id && msg.sender_id !== user?.id) {
+          const profileRes = await usersAPI.getProfile(msg.sender_id);
+          const profile = profileRes.data?.user || profileRes.data;
+          setRecipientProfile({
+            id: profile.id,
+            username: profile.username,
+            full_name: profile.full_name,
+            is_online: profile.is_online,
+            last_seen_at: profile.last_seen_at,
+          });
+        }
+      }
+    } catch {
+      // Silently fail - profile fetch is optional
+    }
+  }, [conversationId, user?.id]);
+
+  // Fetch recipient profile initially and periodically
+  useEffect(() => {
+    fetchRecipientProfile();
+    const interval = setInterval(fetchRecipientProfile, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, [fetchRecipientProfile]);
+
+    // Fetch messages
   const fetchMessages = useCallback(async () => {
     try {
       const res = await messagesAPI.getMessages(conversationId, 50);
@@ -288,10 +350,21 @@ export default function ChatScreen() {
           <Ionicons name="arrow-back" size={24} color={textColor} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.headerInfo} activeOpacity={0.7}>
-          <Avatar uri={recipientAvatar} name={recipientName} size={36} />
+          <View style={{ position: 'relative' }}>
+            <Avatar uri={recipientAvatar} name={recipientName} size={36} />
+            <View style={{ position: 'absolute', bottom: 0, right: 0 }}>
+              <OnlineIndicator 
+                isOnline={recipientProfile?.is_online} 
+                lastSeenAt={recipientProfile?.last_seen_at} 
+                size={12} 
+              />
+            </View>
+          </View>
           <View>
             <Text style={[styles.headerName, { color: textColor }]} numberOfLines={1}>{recipientName}</Text>
-            <Text style={[styles.headerStatus, { color: mutedColor }]}>tap for info</Text>
+            <Text style={[styles.headerStatus, { color: recipientProfile?.is_online ? colors.primary[500] : mutedColor }]}>
+              {recipientProfile?.is_online ? 'Active now' : formatLastSeen(recipientProfile?.last_seen_at)}
+            </Text>
           </View>
         </TouchableOpacity>
         <View style={{ width: 48 }} />
