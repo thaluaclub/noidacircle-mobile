@@ -37,9 +37,9 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  signup: (data: { username: string; email: string; password: string }) =>
+  signup: (data: { username: string; email: string; password: string; fullName?: string; phone?: string; account_type?: string }) =>
     api.post('/auth/signup', data),
-  login: (data: { email: string; password: string }) =>
+  login: (data: { identifier: string; password: string }) =>
     api.post('/auth/login', data),
   forgotPassword: (email: string) =>
     api.post('/auth/forgot-password', { email }),
@@ -48,6 +48,8 @@ export const authAPI = {
     api.post('/auth/send-otp', { phone }),
   verifyOTP: (phone: string, otp: string) =>
     api.post('/auth/verify-otp', { phone, otp }),
+  resendVerification: (email: string, password: string) =>
+    api.post('/auth/resend-verification', { email, password }),
 };
 
 // Users API
