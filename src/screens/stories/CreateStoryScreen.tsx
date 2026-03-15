@@ -62,7 +62,7 @@ export default function CreateStoryScreen() {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.8,
         aspect: [9, 16],
       });
@@ -85,7 +85,7 @@ export default function CreateStoryScreen() {
         return;
       }
       const result = await ImagePicker.launchCameraAsync({
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.8,
         aspect: [9, 16],
       });
@@ -104,7 +104,7 @@ export default function CreateStoryScreen() {
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['videos'],
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 0.7,
         videoMaxDuration: 30,
       });
