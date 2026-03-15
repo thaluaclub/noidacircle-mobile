@@ -26,8 +26,9 @@ interface AuthState {
   loading: boolean;
   error: string | null;
   initialized: boolean;
-  login: (email: string, password: string) => Promise<boolean>;
-  signup: (data: { username: string; email: string; password: string }) => Promise<boolean>;
+  login: (identifier: string, password: string) => Promise<boolean>;
+  signup: (data: { username: string; email: string; password: string; fullName?: string; phone?: string; account_type?: string }) => Promise<boolean>;
+  setAuth: (user: User, token: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   restoreSession: () => Promise<void>;
@@ -42,10 +43,11 @@ const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   initialized: false,
 
-  login: async (email: string, password: string) => {
+  login: async (identifier: string, password: string) => {
     set({ loading: true, error: null });
     try {
-      const res = await authAPI.login({ email, password });
+      // Send as 'identifier' — backend handles both email and username
+      const res = await authAPI.login({ identifier, password });
       const token = res.data.token || res.data.idToken;
       await AsyncStorage.setItem('nc_token', token);
       const profile = await usersAPI.me();
@@ -69,6 +71,12 @@ const useAuthStore = create<AuthState>((set, get) => ({
       set({ error: message, loading: false });
       return false;
     }
+  },
+
+  setAuth: async (user: User, token: string) => {
+    await AsyncStorage.setItem('nc_token', token);
+    await AsyncStorage.setItem('nc_user', JSON.stringify(user));
+    set({ user, token, loading: false });
   },
 
   logout: async () => {
