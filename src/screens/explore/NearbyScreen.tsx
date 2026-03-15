@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, FlatList, StyleSheet, ActivityIndicator, Alert, Linking, Platform,
+  ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,7 @@ import { locationAPI, followAPI } from '../../services/api';
 import { colors } from '../../theme/colors';
 
 type TabKey = 'people' | 'businesses' | 'communities';
+type ViewMode = 'list' | 'map';
 
 interface NearbyUser {
   id: string; username: string; full_name: string | null;
@@ -34,6 +36,17 @@ const TABS: { key: TabKey; label: string; icon: keyof typeof Ionicons.glyphMap }
 
 const RADIUS_OPTIONS = [5, 10, 25, 50];
 
+// Business category filters
+const BUSINESS_CATEGORIES = [
+  { key: 'all', label: 'All', icon: 'grid-outline' },
+  { key: 'food', label: 'Food', icon: 'restaurant-outline' },
+  { key: 'cafes', label: 'Cafes', icon: 'cafe-outline' },
+  { key: 'shopping', label: 'Shopping', icon: 'cart-outline' },
+  { key: 'health', label: 'Health', icon: 'fitness-outline' },
+  { key: 'education', label: 'Education', icon: 'school-outline' },
+  { key: 'services', label: 'Services', icon: 'construct-outline' },
+];
+
 export default function NearbyScreen() {
   const dark = useThemeStore((s) => s.dark);
   const navigation = useNavigation();
@@ -43,6 +56,9 @@ export default function NearbyScreen() {
   const [permissionStatus, setPermissionStatus] = useState<'pending' | 'granted' | 'denied'>('pending');
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [businessCategory, setBusinessCategory] = useState('all');
+  const [resultCounts, setResultCounts] = useState<Record<TabKey, number>>({ people: 0, businesses: 0, communities: 0 });
 
   const bg = dark ? colors.dark.bg : '#ffffff';
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -59,10 +75,8 @@ export default function NearbyScreen() {
         try {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
-          // Update user location on server
           locationAPI.updateLocation(loc.coords.latitude, loc.coords.longitude).catch(() => {});
         } catch {
-          // Use Noida center as fallback
           setLocation({ lat: 28.5355, lng: 77.3910 });
         }
       } else {
@@ -78,6 +92,28 @@ export default function NearbyScreen() {
     fetchNearby();
   }, [location, tab, radius]);
 
+  // Fetch all tab counts when location changes
+  useEffect(() => {
+    if (!location) return;
+    fetchAllCounts();
+  }, [location, radius]);
+
+  const fetchAllCounts = useCallback(async () => {
+    if (!location) return;
+    try {
+      const [pRes, bRes, cRes] = await Promise.allSettled([
+        locationAPI.nearbyUsers(location.lat, location.lng, radius),
+        locationAPI.nearbyBusinesses(location.lat, location.lng, radius),
+        locationAPI.nearbyCommunities(location.lat, location.lng, radius),
+      ]);
+      setResultCounts({
+        people: pRes.status === 'fulfilled' ? (pRes.value.data?.users || pRes.value.data || []).length : 0,
+        businesses: bRes.status === 'fulfilled' ? (bRes.value.data?.users || bRes.value.data || []).length : 0,
+        communities: cRes.status === 'fulfilled' ? (cRes.value.data?.communities || cRes.value.data || []).length : 0,
+      });
+    } catch {}
+  }, [location, radius]);
+
   const fetchNearby = useCallback(async () => {
     if (!location) return;
     setLoading(true);
@@ -90,7 +126,9 @@ export default function NearbyScreen() {
       } else {
         res = await locationAPI.nearbyCommunities(location.lat, location.lng, radius);
       }
-      setData(res.data?.users || res.data?.communities || res.data || []);
+      const items = res.data?.users || res.data?.communities || res.data || [];
+      setData(items);
+      setResultCounts(prev => ({ ...prev, [tab]: items.length }));
     } catch {
       setData([]);
     } finally {
@@ -103,6 +141,14 @@ export default function NearbyScreen() {
     if (km < 1) return `${Math.round(km * 1000)}m away`;
     return `${km.toFixed(1)}km away`;
   };
+
+  // Filter businesses by category
+  const filteredData = tab === 'businesses' && businessCategory !== 'all'
+    ? data.filter((item: any) => {
+        const cat = (item.account_category || item.business_category || '').toLowerCase();
+        return cat.includes(businessCategory.toLowerCase());
+      })
+    : data;
 
   const renderUserItem = useCallback(({ item }: { item: NearbyUser }) => (
     <TouchableOpacity
@@ -203,12 +249,21 @@ export default function NearbyScreen() {
           <Ionicons name="arrow-back" size={24} color={textColor} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: textColor }]}>Nearby</Text>
-        <TouchableOpacity onPress={fetchNearby} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <Ionicons name="refresh" size={22} color={textColor} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          {/* List/Map toggle */}
+          <TouchableOpacity
+            onPress={() => setViewMode(viewMode === 'list' ? 'map' : 'list')}
+            style={styles.viewToggle}
+          >
+            <Ionicons name={viewMode === 'list' ? 'map-outline' : 'list-outline'} size={22} color={textColor} />
+          </TouchableOpacity>
+          <TouchableOpacity onPress={fetchNearby} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+            <Ionicons name="refresh" size={22} color={textColor} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Tabs */}
+      {/* Tabs with result count badges */}
       <View style={[styles.tabBar, { borderBottomColor: borderColor }]}>
         {TABS.map(t => (
           <TouchableOpacity
@@ -218,9 +273,41 @@ export default function NearbyScreen() {
           >
             <Ionicons name={t.icon} size={18} color={tab === t.key ? colors.primary[500] : mutedColor} />
             <Text style={[styles.tabText, { color: tab === t.key ? colors.primary[500] : mutedColor }]}>{t.label}</Text>
+            {resultCounts[t.key] > 0 && (
+              <View style={[styles.countBadge, { backgroundColor: tab === t.key ? colors.primary[500] : 'rgba(0,0,0,0.08)' }]}>
+                <Text style={[styles.countBadgeText, { color: tab === t.key ? '#fff' : mutedColor }]}>{resultCounts[t.key]}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         ))}
       </View>
+
+      {/* Business category filters */}
+      {tab === 'businesses' && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={[styles.categoryBar, { borderBottomColor: borderColor }]}
+          contentContainerStyle={styles.categoryScroll}
+        >
+          {BUSINESS_CATEGORIES.map(cat => (
+            <TouchableOpacity
+              key={cat.key}
+              style={[styles.categoryChip, businessCategory === cat.key && styles.categoryChipActive]}
+              onPress={() => setBusinessCategory(cat.key)}
+            >
+              <Ionicons
+                name={cat.icon as any}
+                size={14}
+                color={businessCategory === cat.key ? '#fff' : mutedColor}
+              />
+              <Text style={[styles.categoryChipText, businessCategory === cat.key && styles.categoryChipTextActive]}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
 
       {/* Radius selector */}
       <View style={[styles.radiusBar, { borderBottomColor: borderColor }]}>
@@ -237,11 +324,42 @@ export default function NearbyScreen() {
         ))}
       </View>
 
-      {loading ? (
+      {viewMode === 'map' ? (
+        // Map placeholder — native map requires react-native-maps which needs native build
+        <View style={styles.mapPlaceholder}>
+          <View style={[styles.mapPlaceholderInner, { backgroundColor: dark ? colors.dark.card : '#f0f4f8' }]}>
+            <Ionicons name="map" size={64} color={colors.primary[500]} style={{ opacity: 0.3 }} />
+            <Text style={[styles.mapPlaceholderTitle, { color: textColor }]}>Map View</Text>
+            <Text style={[styles.mapPlaceholderText, { color: mutedColor }]}>
+              {filteredData.length} {tab} found within {radius}km
+            </Text>
+            <Text style={[styles.mapPlaceholderSubtext, { color: mutedColor }]}>
+              {location ? `Location: ${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}` : 'Getting location...'}
+            </Text>
+            {/* Show list of results with distance */}
+            <FlatList
+              data={filteredData.slice(0, 5)}
+              keyExtractor={item => item.id}
+              style={{ width: '100%', marginTop: 16 }}
+              renderItem={({ item }) => (
+                <View style={[styles.mapListItem, { borderColor }]}>
+                  <Ionicons name="location" size={16} color={colors.primary[500]} />
+                  <Text style={[{ color: textColor, fontSize: 14, flex: 1, marginLeft: 8 }]} numberOfLines={1}>
+                    {item.full_name || item.username || item.name}
+                  </Text>
+                  <Text style={[{ color: mutedColor, fontSize: 12 }]}>
+                    {formatDistance(item.distance)}
+                  </Text>
+                </View>
+              )}
+            />
+          </View>
+        </View>
+      ) : loading ? (
         <View style={styles.loadingContainer}><ActivityIndicator size="large" color={colors.primary[500]} /></View>
       ) : (
         <FlatList
-          data={data}
+          data={filteredData}
           renderItem={tab === 'communities' ? renderCommunityItem : renderUserItem}
           keyExtractor={item => item.id}
           ListEmptyComponent={
@@ -264,16 +382,36 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 0.5 },
   headerTitle: { fontSize: 18, fontWeight: '700' },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  viewToggle: { padding: 4 },
   tabBar: { flexDirection: 'row', borderBottomWidth: 0.5 },
   tab: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 12 },
   tabActive: { borderBottomWidth: 2, borderBottomColor: colors.primary[500] },
   tabText: { fontSize: 13, fontWeight: '600' },
+  countBadge: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: 10, marginLeft: 4 },
+  countBadgeText: { fontSize: 10, fontWeight: '700' },
+  // Business categories
+  categoryBar: { borderBottomWidth: 0.5, maxHeight: 48 },
+  categoryScroll: { paddingHorizontal: 12, paddingVertical: 8, gap: 8 },
+  categoryChip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.04)', gap: 4 },
+  categoryChipActive: { backgroundColor: colors.primary[500] },
+  categoryChipText: { fontSize: 12, fontWeight: '600', color: '#888' },
+  categoryChipTextActive: { color: '#fff' },
+  // Radius
   radiusBar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, gap: 8, borderBottomWidth: 0.5 },
   radiusLabel: { fontSize: 13, fontWeight: '500' },
   radiusChip: { paddingHorizontal: 12, paddingVertical: 5, borderRadius: 16, backgroundColor: 'rgba(59,130,246,0.08)' },
   radiusChipActive: { backgroundColor: colors.primary[500] },
   radiusChipText: { fontSize: 12, fontWeight: '600', color: colors.primary[500] },
   radiusChipTextActive: { color: '#fff' },
+  // Map placeholder
+  mapPlaceholder: { flex: 1, padding: 16 },
+  mapPlaceholderInner: { flex: 1, borderRadius: 16, alignItems: 'center', justifyContent: 'center', padding: 24 },
+  mapPlaceholderTitle: { fontSize: 20, fontWeight: '700', marginTop: 12 },
+  mapPlaceholderText: { fontSize: 14, marginTop: 4 },
+  mapPlaceholderSubtext: { fontSize: 12, marginTop: 4 },
+  mapListItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, paddingHorizontal: 4 },
+  // Cards
   loadingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   card: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 12, marginVertical: 4, padding: 14, borderRadius: 14, borderWidth: 0.5 },
   cardInfo: { flex: 1, marginLeft: 12 },
