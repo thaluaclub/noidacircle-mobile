@@ -9,6 +9,29 @@ export interface PostAuthor {
   account_type?: string;
 }
 
+// Story types
+export interface Story {
+  id: string;
+  user_id: string;
+  image_url: string | null;
+  video_url: string | null;
+  caption: string | null;
+  media_type: 'image' | 'video' | 'text';
+  bg_color: string | null;
+  text_content: string | null;
+  expires_at: string;
+  views_count: number;
+  created_at: string;
+  is_viewed: boolean;
+}
+
+export interface StoryGroup {
+  user: PostAuthor;
+  stories: Story[];
+  latest_at: string;
+  has_unviewed: boolean;
+}
+
 // Post types
 export interface Post {
   id: string;
