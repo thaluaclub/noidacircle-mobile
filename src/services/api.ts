@@ -144,15 +144,17 @@ export const notificationsAPI = {
   markRead: (id: string) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
   registerPushToken: (token: string, platform: string) =>
-    api.post('/notifications/push-token', { token, platform }),
+    api.post('/notifications/device-token', { fcm_token: token, device_type: platform }),
   removePushToken: (token: string) =>
-    api.delete('/notifications/push-token', { data: { token } }),
+    api.delete('/notifications/device-token', { data: { fcm_token: token } }),
   subscribe: (targetId: string) =>
     api.post(`/notifications/subscribe/${targetId}`),
   unsubscribe: (targetId: string) =>
     api.delete(`/notifications/subscribe/${targetId}`),
   checkSubscription: (targetId: string) =>
     api.get(`/notifications/subscribe/${targetId}/check`),
+  registerToken: (token: string) =>
+    api.post('/notifications/device-token', { fcm_token: token, device_type: 'android' }),
   getPreferences: () => api.get('/notifications/preferences'),
   updatePreferences: (data: any) =>
     api.put('/notifications/preferences', data),
