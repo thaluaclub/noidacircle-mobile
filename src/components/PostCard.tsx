@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, memo } from 'react';
+import React, { useState, useCallback, useMemo, memo, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,6 +8,9 @@ import {
   Share,
   Modal,
   Alert,
+  FlatList,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +18,7 @@ import Avatar from './Avatar';
 import AutoPlayVideo from './AutoPlayVideo';
 import { colors } from '../theme/colors';
 import { timeAgo, formatCount } from '../utils/formatters';
+import { postsAPI } from '../services/api';
 import type { Post } from '../types';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -28,6 +32,7 @@ interface PollData {
   duration_hours: number;
   votes?: number[];
   total_votes?: number;
+  voters?: Record<string, number>;
 }
 
 interface EventData {
@@ -36,37 +41,155 @@ interface EventData {
   location: string;
 }
 
+interface QuoteData {
+  type: 'quote';
+  original_post_id: string;
+}
+
 interface PostCardProps {
   post: Post;
   onPress?: () => void;
   onLike?: () => void;
+  onDownvote?: () => void;
   onBookmark?: () => void;
   onComment?: () => void;
   onUserPress?: (userId: string) => void;
   onReelPress?: (post: Post) => void;
   onEdit?: (post: Post) => void;
   onDelete?: (postId: string) => void;
+  onQuote?: (post: Post) => void;
   dark?: boolean;
   isVisible?: boolean;
+}
+
+// Image Carousel Component
+function ImageCarousel({ urls, dark }: { urls: string[]; dark: boolean }) {
+  const [activeIndex, setActiveIndex] = useState(0);
+  const flatListRef = useRef<FlatList>(null);
+
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offset = e.nativeEvent.contentOffset.x;
+    const index = Math.round(offset / MEDIA_WIDTH);
+    setActiveIndex(index);
+  }, []);
+
+  const renderImage = useCallback(({ item }: { item: string }) => (
+    <Image
+      source={{ uri: item }}
+      style={{ width: MEDIA_WIDTH, height: MEDIA_WIDTH * 0.75, borderRadius: 12 }}
+      contentFit="cover"
+      transition={200}
+    />
+  ), []);
+
+  return (
+    <View style={styles.carouselContainer}>
+      <FlatList
+        ref={flatListRef}
+        data={urls}
+        renderItem={renderImage}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
+        keyExtractor={(_, i) => i.toString()}
+        snapToInterval={MEDIA_WIDTH}
+        decelerationRate="fast"
+        getItemLayout={(_, index) => ({
+          length: MEDIA_WIDTH,
+          offset: MEDIA_WIDTH * index,
+          index,
+        })}
+      />
+      {/* Counter badge */}
+      {urls.length > 1 && (
+        <View style={styles.carouselCounter}>
+          <Text style={styles.carouselCounterText}>{activeIndex + 1}/{urls.length}</Text>
+        </View>
+      )}
+      {/* Dots */}
+      {urls.length > 1 && urls.length <= 10 && (
+        <View style={styles.carouselDots}>
+          {urls.map((_, i) => (
+            <View
+              key={i}
+              style={[
+                styles.dot,
+                { backgroundColor: i === activeIndex ? colors.primary[500] : 'rgba(255,255,255,0.5)' },
+              ]}
+            />
+          ))}
+        </View>
+      )}
+    </View>
+  );
+}
+
+// Quoted Post Embed Component
+function QuotedPostEmbed({ post, dark, onPress }: { post: Post; dark: boolean; onPress?: () => void }) {
+  const textColor = dark ? colors.dark.text : colors.light.text;
+  const mutedColor = dark ? colors.dark.muted : colors.light.muted;
+  const borderColor = dark ? colors.dark.border : colors.light.border;
+
+  return (
+    <TouchableOpacity
+      style={[styles.quotedPost, { borderColor }]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.quotedHeader}>
+        <Avatar
+          uri={post.user?.profile_image_url}
+          name={post.user?.full_name || post.user?.username || '?'}
+          size={20}
+        />
+        <Text style={[styles.quotedName, { color: textColor }]} numberOfLines={1}>
+          {post.user?.full_name || post.user?.username}
+        </Text>
+        {post.user?.is_verified && (
+          <Ionicons name="checkmark-circle" size={12} color={colors.primary[500]} />
+        )}
+        <Text style={[styles.quotedTime, { color: mutedColor }]}>· {timeAgo(post.created_at)}</Text>
+      </View>
+      {post.content ? (
+        <Text style={[styles.quotedContent, { color: textColor }]} numberOfLines={3}>
+          {post.content}
+        </Text>
+      ) : null}
+      {post.media_url && post.media_type === 'image' && (
+        <Image
+          source={{ uri: post.media_url }}
+          style={styles.quotedMedia}
+          contentFit="cover"
+          transition={200}
+        />
+      )}
+    </TouchableOpacity>
+  );
 }
 
 function PostCard({
   post,
   onPress,
   onLike,
+  onDownvote,
   onBookmark,
   onComment,
   onUserPress,
   onReelPress,
   onEdit,
   onDelete,
+  onQuote,
   dark = false,
   isVisible = false,
 }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [imageAspect, setImageAspect] = useState(4 / 3);
   const [votedIndex, setVotedIndex] = useState<number | null>(null);
+  const [pollData, setPollData] = useState<PollData | null>(null);
   const [showMenu, setShowMenu] = useState(false);
+  const [viewRecorded, setViewRecorded] = useState(false);
   const isLong = post.content.length > MAX_CONTENT_LENGTH;
 
   const textColor = dark ? colors.dark.text : colors.light.text;
@@ -74,19 +197,46 @@ function PostCard({
   const borderColor = dark ? colors.dark.border : colors.light.border;
   const cardBg = dark ? colors.dark.card : '#ffffff';
 
-  // Parse poll/event data from description
+  // Record view when visible
+  useEffect(() => {
+    if (isVisible && !viewRecorded) {
+      setViewRecorded(true);
+      postsAPI.recordView(post.id).catch(() => {});
+    }
+  }, [isVisible, viewRecorded, post.id]);
+
+  // Parse description data
   const parsedData = useMemo(() => {
     if (!post.description) return null;
     try {
       const parsed = JSON.parse(post.description);
-      if (parsed.type === 'poll' || parsed.type === 'event') return parsed;
+      if (parsed.type === 'poll' || parsed.type === 'event' || parsed.type === 'quote') return parsed;
     } catch {}
     return null;
   }, [post.description]);
 
   const isPoll = post.category === 'poll' && parsedData?.type === 'poll';
   const isEvent = (post.category === 'events' || post.category === 'event') && parsedData?.type === 'event';
+  const isQuote = parsedData?.type === 'quote';
   const isReel = post.media_url && post.media_type === 'video';
+  const isCarousel = post.media_type === 'carousel' && post.media_url;
+
+  // Parse carousel URLs
+  const carouselUrls = useMemo(() => {
+    if (!isCarousel || !post.media_url) return [];
+    try {
+      return JSON.parse(post.media_url) as string[];
+    } catch {
+      return [];
+    }
+  }, [isCarousel, post.media_url]);
+
+  // Format views count
+  const formatViews = (count: number) => {
+    if (count >= 1000000) return `${(count / 1000000).toFixed(1)}M`;
+    if (count >= 1000) return `${(count / 1000).toFixed(1)}K`;
+    return count.toString();
+  };
 
   const handleShare = useCallback(async () => {
     try {
@@ -119,24 +269,50 @@ function PostCard({
 
   const imageHeight = Math.min(MEDIA_WIDTH / imageAspect, 500);
 
-  const handleVote = useCallback((index: number) => {
+  // Poll voting with real API
+  const handleVote = useCallback(async (index: number) => {
     if (votedIndex !== null) return;
     setVotedIndex(index);
-  }, [votedIndex]);
+    try {
+      const res = await postsAPI.vote(post.id, index);
+      if (res.data?.poll) {
+        setPollData(res.data.poll);
+      }
+    } catch {
+      // Still show local vote even if API fails
+    }
+  }, [votedIndex, post.id]);
+
+  // Load poll data on mount if poll
+  useEffect(() => {
+    if (isPoll) {
+      postsAPI.getPoll(post.id).then(res => {
+        const data = res.data;
+        if (data) {
+          setPollData(data);
+          if (data.user_vote !== undefined && data.user_vote !== null) {
+            setVotedIndex(data.user_vote);
+          }
+        }
+      }).catch(() => {});
+    }
+  }, [isPoll, post.id]);
 
   // Render poll UI
   const renderPoll = () => {
     if (!isPoll) return null;
-    const pollData = parsedData as PollData;
-    const options = pollData.options || [];
-    const totalVotes = votedIndex !== null ? options.length : 0;
+    const pd = pollData || parsedData as PollData;
+    const options = pd?.options || [];
+    const totalVotes = pd?.total_votes || 0;
+    const votes = pd?.votes || [];
 
     return (
       <View style={styles.pollContainer}>
         {options.map((option, index) => {
           const isVoted = votedIndex === index;
           const hasVoted = votedIndex !== null;
-          const percentage = hasVoted ? Math.round((1 / options.length) * 100) : 0;
+          const voteCount = votes[index] || 0;
+          const percentage = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
 
           return (
             <TouchableOpacity
@@ -176,7 +352,7 @@ function PostCard({
         <View style={styles.pollFooter}>
           <Ionicons name="bar-chart-outline" size={14} color={mutedColor} />
           <Text style={[styles.pollFooterText, { color: mutedColor }]}>
-            {votedIndex !== null ? 'You voted' : 'Tap to vote'} · {pollData.duration_hours}h poll
+            {totalVotes} vote{totalVotes !== 1 ? 's' : ''} · {votedIndex !== null ? 'You voted' : 'Tap to vote'}
           </Text>
         </View>
       </View>
@@ -280,6 +456,10 @@ function PostCard({
                 <Ionicons name={post.is_bookmarked ? 'bookmark' : 'bookmark-outline'} size={20} color="#f59e0b" />
                 <Text style={[styles.menuItemText, { color: textColor }]}>{post.is_bookmarked ? 'Remove Bookmark' : 'Bookmark'}</Text>
               </TouchableOpacity>
+              <TouchableOpacity style={[styles.menuItem, { borderBottomColor: borderColor }]} onPress={() => { setShowMenu(false); onQuote?.(post); }}>
+                <Ionicons name="chatbox-outline" size={20} color="#8b5cf6" />
+                <Text style={[styles.menuItemText, { color: textColor }]}>Quote Post</Text>
+              </TouchableOpacity>
               <TouchableOpacity style={styles.menuItem} onPress={() => {
                 setShowMenu(false);
                 Alert.alert('Delete Post', 'Are you sure you want to delete this post? This cannot be undone.', [
@@ -319,7 +499,18 @@ function PostCard({
       {/* Event UI */}
       {renderEvent()}
 
-      {/* Media - Image */}
+      {/* Quoted Post */}
+      {isQuote && post.quoted_post && (
+        <View style={{ marginTop: 10, paddingHorizontal: 0 }}>
+          <QuotedPostEmbed
+            post={post.quoted_post}
+            dark={dark}
+            onPress={onPress}
+          />
+        </View>
+      )}
+
+      {/* Media - Single Image */}
       {post.media_url && post.media_type === 'image' && (
         <Image
           source={{ uri: post.media_url }}
@@ -329,6 +520,13 @@ function PostCard({
           recyclingKey={post.id}
           onLoad={onImageLoad}
         />
+      )}
+
+      {/* Media - Image Carousel */}
+      {isCarousel && carouselUrls.length > 0 && (
+        <View style={{ marginTop: 10 }}>
+          <ImageCarousel urls={carouselUrls} dark={dark} />
+        </View>
       )}
 
       {/* Media - Video/Reel with portrait aspect ratio */}
@@ -352,30 +550,46 @@ function PostCard({
         </TouchableOpacity>
       )}
 
-      {/* Action Bar */}
+      {/* Views count */}
+      {post.shares_count > 0 && (
+        <View style={styles.viewsRow}>
+          <Ionicons name="eye-outline" size={14} color={mutedColor} />
+          <Text style={[styles.viewsText, { color: mutedColor }]}>{formatViews(post.shares_count)} views</Text>
+        </View>
+      )}
+
+      {/* Action Bar - Upvote/Downvote + Comment + Share + Bookmark */}
       <View style={styles.actionBar}>
-        <TouchableOpacity
-          onPress={onLike}
-          style={styles.actionBtn}
-          activeOpacity={0.6}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Ionicons
-            name={post.is_liked ? 'heart' : 'heart-outline'}
-            size={22}
-            color={post.is_liked ? colors.error : mutedColor}
-          />
-          {post.likes_count > 0 && (
-            <Text
-              style={[
-                styles.actionCount,
-                { color: post.is_liked ? colors.error : mutedColor },
-              ]}
-            >
-              {formatCount(post.likes_count)}
-            </Text>
-          )}
-        </TouchableOpacity>
+        {/* Upvote/Downvote pill */}
+        <View style={[styles.votePill, { backgroundColor: dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)' }]}>
+          <TouchableOpacity
+            onPress={onLike}
+            style={styles.voteBtn}
+            activeOpacity={0.6}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={post.is_liked ? 'arrow-up-circle' : 'arrow-up-circle-outline'}
+              size={22}
+              color={post.is_liked ? colors.primary[500] : mutedColor}
+            />
+          </TouchableOpacity>
+          <Text style={[styles.voteCount, { color: textColor }]}>
+            {formatCount(Math.max(0, post.likes_count - (post.downvotes_count || 0)))}
+          </Text>
+          <TouchableOpacity
+            onPress={onDownvote}
+            style={styles.voteBtn}
+            activeOpacity={0.6}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons
+              name={post.is_downvoted ? 'arrow-down-circle' : 'arrow-down-circle-outline'}
+              size={22}
+              color={post.is_downvoted ? '#ef4444' : mutedColor}
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity
           onPress={onComment}
@@ -490,6 +704,79 @@ const styles = StyleSheet.create({
     backgroundColor: colors.light.border,
     overflow: 'hidden',
   },
+  // Carousel styles
+  carouselContainer: {
+    position: 'relative',
+  },
+  carouselCounter: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+  },
+  carouselCounterText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  carouselDots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 4,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  // Views row
+  viewsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
+    paddingLeft: 2,
+  },
+  viewsText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  // Quoted post styles
+  quotedPost: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 4,
+  },
+  quotedHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+  },
+  quotedName: {
+    fontSize: 13,
+    fontWeight: '600',
+    maxWidth: 120,
+  },
+  quotedTime: {
+    fontSize: 12,
+  },
+  quotedContent: {
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  quotedMedia: {
+    width: '100%',
+    height: 120,
+    borderRadius: 8,
+    marginTop: 8,
+  },
   // Poll styles
   pollContainer: {
     marginTop: 12,
@@ -587,12 +874,30 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+  // Action bar with vote pill
   actionBar: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 10,
     paddingRight: 16,
+  },
+  votePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 20,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+    gap: 2,
+  },
+  voteBtn: {
+    padding: 4,
+  },
+  voteCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    minWidth: 20,
+    textAlign: 'center',
   },
   actionBtn: {
     flexDirection: 'row',
@@ -638,4 +943,3 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
-
