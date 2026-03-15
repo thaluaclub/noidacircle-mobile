@@ -23,14 +23,14 @@ type Props = {
 };
 
 export default function LoginScreen({ navigation }: Props) {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const { login, loading, error, clearError } = useAuthStore();
 
   const handleLogin = async () => {
     clearError();
-    const validationErrors = validateLogin(email, password);
+    const validationErrors = validateLogin(identifier, password);
     if (validationErrors.length > 0) {
       const errMap: Record<string, string> = {};
       validationErrors.forEach((e) => (errMap[e.field] = e.message));
@@ -38,7 +38,7 @@ export default function LoginScreen({ navigation }: Props) {
       return;
     }
     setErrors({});
-    const success = await login(email.trim().toLowerCase(), password);
+    const success = await login(identifier.trim().toLowerCase(), password);
     if (!success && error) {
       // Error is shown inline via store
     }
@@ -78,14 +78,14 @@ export default function LoginScreen({ navigation }: Props) {
           )}
 
           <Input
-            label="Email"
-            icon="mail-outline"
-            placeholder="you@example.com"
-            value={email}
-            onChangeText={setEmail}
-            error={errors.email}
-            keyboardType="email-address"
-            autoComplete="email"
+            label="Email or Username"
+            icon="person-outline"
+            placeholder="Email or username"
+            value={identifier}
+            onChangeText={setIdentifier}
+            error={errors.identifier}
+            autoCapitalize="none"
+            autoComplete="username"
           />
 
           <Input
